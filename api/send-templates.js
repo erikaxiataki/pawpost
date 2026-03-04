@@ -43,6 +43,15 @@ export default async function handler(req, res) {
       })
     }
 
+    // Save contact to Resend for newsletter broadcasts
+    try {
+      await resend.contacts.create({ email, unsubscribed: false })
+      console.log(`📋 Contact saved: ${email}`)
+    } catch (contactErr) {
+      // Contact may already exist — that's fine
+      console.log(`Contact save note: ${contactErr.message}`)
+    }
+
     console.log(`✅ Email sent to ${email} (source: ${source})`, data)
     return res.status(200).json({ success: true })
   } catch (err) {
