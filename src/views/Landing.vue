@@ -121,6 +121,27 @@ function goToOnboarding() {
   setTimeout(() => router.push('/onboarding'), 900)
 }
 
+/* ---- Stripe checkout ---- */
+async function startCheckout(plan) {
+  try {
+    const res = await fetch('/api/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    })
+    const data = await res.json()
+    if (data.url) {
+      window.location.href = data.url
+    } else {
+      // Fallback to onboarding if Stripe not configured yet
+      goToOnboarding()
+    }
+  } catch (e) {
+    // Stripe not set up yet — go to onboarding
+    goToOnboarding()
+  }
+}
+
 /* ---- Scroll reveal ---- */
 const observed = ref(new Set())
 let observer = null
@@ -237,13 +258,21 @@ function storeEmail(email) {
   }
 }
 
-function submitPopup() {
+async function submitPopup() {
   if (!popupEmail.value || !popupEmail.value.includes('@')) return
   storeEmail(popupEmail.value)
   popupSubmitted.value = true
   triggerConfetti()
   localStorage.setItem('pawpost_popup_dismissed', 'true')
   setTimeout(() => { showPopup.value = false }, 3500)
+  // Send email in background
+  try {
+    await fetch('/api/send-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: popupEmail.value, source: 'popup' }),
+    })
+  } catch (e) { /* fail silently — email still stored locally */ }
 }
 
 function dismissPopup() {
@@ -269,11 +298,19 @@ function initPopup() {
 const newsletterEmail = ref('')
 const newsletterSubmitted = ref(false)
 
-function submitNewsletter() {
+async function submitNewsletter() {
   if (!newsletterEmail.value || !newsletterEmail.value.includes('@')) return
   storeEmail(newsletterEmail.value)
   newsletterSubmitted.value = true
   triggerConfetti()
+  // Send welcome email in background
+  try {
+    await fetch('/api/send-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: newsletterEmail.value, source: 'newsletter' }),
+    })
+  } catch (e) { /* fail silently */ }
 }
 
 /* ---- Popup floating paws ---- */
@@ -707,7 +744,7 @@ onUnmounted(() => {
             <li>{{ t('pricingPrem5') }}</li>
             <li>{{ t('pricingPrem6') }}</li>
           </ul>
-          <button class="pp-btn-primary pp-btn-full pp-btn-bounce" @click="goToOnboarding">{{ t('pricingPremBtn') }}</button>
+          <button class="pp-btn-primary pp-btn-full pp-btn-bounce" @click="startCheckout('premium')">{{ t('pricingPremBtn') }}</button>
           <p class="pp-pricing-note">{{ t('pricingPremNote') }}</p>
         </div>
         <!-- Premium Pro -->
@@ -724,7 +761,7 @@ onUnmounted(() => {
             <li>{{ t('pricingPro5') }}</li>
             <li>{{ t('pricingPro6') }}</li>
           </ul>
-          <button class="pp-btn-primary pp-btn-full" @click="goToOnboarding">{{ t('pricingPremBtn') }}</button>
+          <button class="pp-btn-primary pp-btn-full" @click="startCheckout('premium_pro')">{{ t('pricingPremBtn') }}</button>
           <p class="pp-pricing-note">{{ t('pricingPremNote') }}</p>
         </div>
       </div>
