@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n, rotatingPhrasesI18n } from '../i18n.js'
 
 const router = useRouter()
+const { t, locale, setLocale } = useI18n()
 
 /* ---- Calculator ---- */
 const hoursPerWeek = ref(3)
@@ -150,14 +152,7 @@ const wigglePill = ref(-1)
 const typewriterText = ref('')
 const typewriterPhrase = ref(0)
 const isDeleting = ref(false)
-const rotatingPhrases = [
-  'Start posting.',
-  'Start booking.',
-  'Start standing out.',
-  'Get your weekends back.',
-  'Let AI do the work.',
-  'Go walk some dogs.',
-]
+const rotatingPhrases = computed(() => rotatingPhrasesI18n[locale.value] || rotatingPhrasesI18n.en)
 function startTypewriter() {
   let charIdx = 0
   let phraseIdx = 0
@@ -167,7 +162,7 @@ function startTypewriter() {
   const pauseAfterDelete = 400
 
   function tick() {
-    const currentPhrase = rotatingPhrases[phraseIdx]
+    const currentPhrase = rotatingPhrases.value[phraseIdx]
     if (!isDeleting.value) {
       // Typing
       charIdx++
@@ -185,7 +180,7 @@ function startTypewriter() {
       typewriterText.value = currentPhrase.slice(0, charIdx)
       if (charIdx <= 0) {
         isDeleting.value = false
-        phraseIdx = (phraseIdx + 1) % rotatingPhrases.length
+        phraseIdx = (phraseIdx + 1) % rotatingPhrases.value.length
         typewriterPhrase.value = phraseIdx
         setTimeout(tick, pauseAfterDelete)
         return
@@ -318,12 +313,18 @@ onUnmounted(() => {
     <nav class="pp-nav">
       <div class="pp-nav-inner">
         <div class="pp-logo" @click="router.push('/')">
-          <span class="pp-logo-paw">🐾</span>
+          <img src="/logo.png" alt="PawPost AI" class="pp-logo-img" />
           <span class="pp-logo-text">PawPost <span class="pp-logo-ai">AI</span></span>
         </div>
-        <button class="pp-nav-cta" @click="goToOnboarding">
-          Get Started Free
-        </button>
+        <div class="pp-nav-right">
+          <div class="pp-lang-toggle">
+            <button :class="['pp-lang-btn', locale === 'en' && 'active']" @click="setLocale('en')" title="English">🇨🇦</button>
+            <button :class="['pp-lang-btn', locale === 'pt' && 'active']" @click="setLocale('pt')" title="Português">🇧🇷</button>
+          </div>
+          <button class="pp-nav-cta" @click="goToOnboarding">
+            {{ t('navCta') }}
+          </button>
+        </div>
       </div>
     </nav>
 
@@ -352,30 +353,30 @@ onUnmounted(() => {
       <div class="pp-hero-content">
         <!-- Badge -->
         <div class="pp-hero-badge animate-in">
-          Built for pet businesses in Canada 🇨🇦
+          {{ t('badge') }}
         </div>
 
         <h1 class="pp-hero-h1 animate-in d1">
-          Stop writing captions.<br>
+          {{ t('heroH1') }}<br>
           <em class="pp-hero-em">
             {{ typewriterText }}<span class="pp-cursor">|</span>
           </em>
         </h1>
 
         <p class="pp-hero-sub animate-in d2">
-          30 days of social media captions for your pet business, generated in 60 seconds.
-          Captions that actually sound like <strong>you</strong>, not a robot!
+          {{ t('heroSub1') }}
+          {{ t('heroSub2') }} <strong>{{ t('heroSub3') }}</strong>{{ t('heroSub4') }}
         </p>
 
         <div class="pp-hero-pills animate-in d2">
           <span
             v-for="(pill, pi) in [
-              { emoji: '✂️', label: 'Groomers' },
-              { emoji: '🦮', label: 'Walkers' },
-              { emoji: '🎾', label: 'Trainers' },
-              { emoji: '🏠', label: 'Sitters' },
-              { emoji: '🐕', label: 'Daycares' },
-              { emoji: '🩺', label: 'Vet Clinics' },
+              { emoji: '✂️', label: t('pillGroomers') },
+              { emoji: '🦮', label: t('pillWalkers') },
+              { emoji: '🎾', label: t('pillTrainers') },
+              { emoji: '🏠', label: t('pillSitters') },
+              { emoji: '🐕', label: t('pillDaycares') },
+              { emoji: '🩺', label: t('pillVets') },
             ]"
             :key="pi"
             class="pp-pill"
@@ -389,9 +390,9 @@ onUnmounted(() => {
 
         <div class="pp-hero-actions animate-in d3">
           <button class="pp-btn-primary pp-btn-bounce" @click="goToOnboarding">
-            Generate My Free Caption Pack →
+            {{ t('heroCta') }}
           </button>
-          <span class="pp-hero-note">No credit card required. Takes 60 seconds.</span>
+          <span class="pp-hero-note">{{ t('heroNote') }}</span>
         </div>
 
         <!-- Hero caption preview card -->
@@ -400,16 +401,16 @@ onUnmounted(() => {
           <div class="pp-hero-card-header">
             <div class="pp-hero-card-avatar">✂️</div>
             <div>
-              <p class="pp-hero-card-biz">Pawfect Grooming</p>
-              <p class="pp-hero-card-meta">Monday · Instagram · <span class="pp-card-status">Ready to post</span></p>
+              <p class="pp-hero-card-biz">{{ t('heroCardBiz') }}</p>
+              <p class="pp-hero-card-meta">{{ t('heroCardMeta') }} <span class="pp-card-status">{{ t('heroCardStatus') }}</span></p>
             </div>
           </div>
-          <p class="pp-hero-card-text">Monday mood: that look your dog gives you when they realize they're at the groomer, not the park. Don't worry buddy, you'll thank us later! 😂🐕</p>
+          <p class="pp-hero-card-text">{{ t('heroCardText') }}</p>
           <div class="pp-hero-card-tags">
             <span>#DogGrooming</span>
             <span>#MondayMood</span>
             <span>#GroomerLife</span>
-            <span class="pp-card-photo">📸 Photo idea included</span>
+            <span class="pp-card-photo">{{ t('heroCardPhoto') }}</span>
           </div>
         </div>
       </div>
@@ -419,8 +420,7 @@ onUnmounted(() => {
     <div class="pp-marquee-wrap">
       <div class="pp-marquee">
         <span class="pp-marquee-track">
-          GROOMERS · WALKERS · TRAINERS · SITTERS · DAYCARES · VET CLINICS · PET PHOTOGRAPHERS · PET STORES ·
-          GROOMERS · WALKERS · TRAINERS · SITTERS · DAYCARES · VET CLINICS · PET PHOTOGRAPHERS · PET STORES ·
+          {{ t('marquee') }} {{ t('marquee') }}
         </span>
       </div>
     </div>
@@ -429,12 +429,12 @@ onUnmounted(() => {
     <section class="pp-calc" data-reveal="calc" :class="{ visible: isVisible('calc') }">
       <div class="pp-calc-inner">
         <div class="pp-calc-left">
-          <h2 class="pp-section-h2">You're burning<br><em>real money</em> on captions</h2>
-          <p class="pp-section-sub">Every hour you spend staring at a blank caption box is an hour you're not grooming, training, or booking clients.</p>
+          <h2 class="pp-section-h2">{{ t('calcH2') }}<br><em>{{ t('calcH2em') }}</em> {{ t('calcH2end') }}</h2>
+          <p class="pp-section-sub">{{ t('calcSub') }}</p>
         </div>
         <div class="pp-calc-right">
           <div class="pp-calc-box">
-            <label class="pp-calc-label">Hours per week on captions</label>
+            <label class="pp-calc-label">{{ t('calcLabel') }}</label>
             <div class="pp-calc-btns">
               <button
                 v-for="h in [1, 2, 3, 4, 5]"
@@ -448,16 +448,16 @@ onUnmounted(() => {
             <div class="pp-calc-result">
               <div class="pp-calc-result-row">
                 <span class="pp-calc-result-num pp-num-pop" :key="'y-' + calcYearly">{{ displayYearly }}</span>
-                <span class="pp-calc-result-unit">hours wasted per year</span>
+                <span class="pp-calc-result-unit">{{ t('calcHoursYear') }}</span>
               </div>
               <p class="pp-calc-result-msg">
-                That's <strong>{{ calcMonthly }} hours every month</strong> — gone.
+                <strong>{{ calcMonthly }} {{ t('calcMonthMsg') }}</strong> {{ t('calcGone') }}
               </p>
               <p class="pp-calc-result-cost">
-                At $25/hr, you're losing <strong>${{ displayDollar.toLocaleString() }}/year</strong>.
+                {{ t('calcCostPre') }} <strong>${{ displayDollar.toLocaleString() }}{{ t('calcCostPost') }}</strong>.
               </p>
               <p class="pp-calc-result-fix">
-                PawPost does it in <strong>60 seconds</strong>. For <strong>less than $1/day</strong>.
+                {{ t('calcFix') }} <strong>{{ t('calcFixBold') }}</strong>{{ t('calcFixEnd') }} <strong>{{ t('calcFixCost') }}</strong>.
               </p>
             </div>
           </div>
@@ -472,43 +472,43 @@ onUnmounted(() => {
 
     <!-- ======== BEFORE / AFTER (Interactive Toggle) ======== -->
     <section class="pp-transform" data-reveal="transform" :class="{ visible: isVisible('transform') }">
-      <h2 class="pp-section-h2 pp-center">Two realities. <em>Pick one.</em></h2>
-      <p class="pp-section-sub pp-center">This is what changes when you stop doing it all yourself.</p>
+      <h2 class="pp-section-h2 pp-center">{{ t('baH2') }} <em>{{ t('baH2em') }}</em></h2>
+      <p class="pp-section-sub pp-center">{{ t('baSub') }}</p>
 
       <!-- Interactive toggle switch -->
       <div class="pp-toggle-wrap">
         <button :class="['pp-toggle-option', !showAfter && 'active']" @click="showAfter = false">
-          Without PawPost
+          {{ t('baWithout') }}
         </button>
         <button :class="['pp-toggle-option pp-toggle-option--good', showAfter && 'active']" @click="showAfter = true">
-          With PawPost AI
+          {{ t('baWith') }}
         </button>
       </div>
 
       <Transition name="transform-swap" mode="out-in">
         <div v-if="!showAfter" key="before" class="pp-transform-single pp-transform-before">
           <ul class="pp-transform-list">
-            <li><span class="pp-x">✗</span> Sunday night blank-screen paralysis</li>
-            <li><span class="pp-x">✗</span> Post once, ghost for two weeks, repeat</li>
-            <li><span class="pp-x">✗</span> Captions that sound corporate and lifeless</li>
-            <li><span class="pp-x">✗</span> Zero idea what photo to pair with your post</li>
-            <li><span class="pp-x">✗</span> Competitors outposting you 5:1</li>
+            <li><span class="pp-x">✗</span> {{ t('baBefore1') }}</li>
+            <li><span class="pp-x">✗</span> {{ t('baBefore2') }}</li>
+            <li><span class="pp-x">✗</span> {{ t('baBefore3') }}</li>
+            <li><span class="pp-x">✗</span> {{ t('baBefore4') }}</li>
+            <li><span class="pp-x">✗</span> {{ t('baBefore5') }}</li>
           </ul>
           <div class="pp-transform-nudge">
-            Toggle right to see the difference →
+            {{ t('baNudge') }}
           </div>
         </div>
         <div v-else key="after" class="pp-transform-single pp-transform-after">
           <ul class="pp-transform-list">
-            <li><span class="pp-check">✓</span> 30 days of content, generated in 60 seconds</li>
-            <li><span class="pp-check">✓</span> Daily posts that build trust and bookings</li>
-            <li><span class="pp-check">✓</span> Your voice, your personality, your brand</li>
-            <li><span class="pp-check">✓</span> Photo ideas paired with every caption</li>
-            <li><span class="pp-check">✓</span> Consistent presence that attracts new clients</li>
+            <li><span class="pp-check">✓</span> {{ t('baAfter1') }}</li>
+            <li><span class="pp-check">✓</span> {{ t('baAfter2') }}</li>
+            <li><span class="pp-check">✓</span> {{ t('baAfter3') }}</li>
+            <li><span class="pp-check">✓</span> {{ t('baAfter4') }}</li>
+            <li><span class="pp-check">✓</span> {{ t('baAfter5') }}</li>
           </ul>
           <div class="pp-transform-cta">
             <button class="pp-btn-primary pp-btn-bounce" @click="goToOnboarding">
-              Start for free →
+              {{ t('baCtaBtn') }}
             </button>
           </div>
         </div>
@@ -517,33 +517,33 @@ onUnmounted(() => {
 
     <!-- ======== HOW IT WORKS ======== -->
     <section class="pp-steps" data-reveal="steps" :class="{ visible: isVisible('steps') }">
-      <h2 class="pp-section-h2 pp-center">60 seconds. 30 days of content.</h2>
-      <p class="pp-section-sub pp-center">Three steps. No learning curve. No templates to customize.</p>
+      <h2 class="pp-section-h2 pp-center">{{ t('stepsH2') }}</h2>
+      <p class="pp-section-sub pp-center">{{ t('stepsSub') }}</p>
       <div class="pp-steps-grid">
         <div class="pp-step pp-step-hover">
           <div class="pp-step-num">1</div>
           <div class="pp-step-icon">📋</div>
-          <h3 class="pp-step-title">Describe your business</h3>
-          <p class="pp-step-desc">60-second quiz — your services, your tone, your audience. Done.</p>
+          <h3 class="pp-step-title">{{ t('step1Title') }}</h3>
+          <p class="pp-step-desc">{{ t('step1Desc') }}</p>
         </div>
         <div class="pp-step-arrow">→</div>
         <div class="pp-step pp-step-hover">
           <div class="pp-step-num">2</div>
           <div class="pp-step-icon">⚡</div>
-          <h3 class="pp-step-title">AI generates your month</h3>
-          <p class="pp-step-desc">30 unique captions, hashtags, and photo ideas — written in your voice.</p>
+          <h3 class="pp-step-title">{{ t('step2Title') }}</h3>
+          <p class="pp-step-desc">{{ t('step2Desc') }}</p>
         </div>
         <div class="pp-step-arrow">→</div>
         <div class="pp-step pp-step-hover">
           <div class="pp-step-num">3</div>
           <div class="pp-step-icon">📱</div>
-          <h3 class="pp-step-title">Copy. Post. Move on.</h3>
-          <p class="pp-step-desc">Open your calendar, tap to copy, paste into Instagram. That's it.</p>
+          <h3 class="pp-step-title">{{ t('step3Title') }}</h3>
+          <p class="pp-step-desc">{{ t('step3Desc') }}</p>
         </div>
       </div>
       <div class="pp-center" style="margin-top: 2.5rem;">
         <button class="pp-btn-primary pp-btn-bounce" @click="goToOnboarding">
-          Try it free →
+          {{ t('stepsCta') }}
         </button>
       </div>
     </section>
@@ -555,8 +555,8 @@ onUnmounted(() => {
 
     <!-- ======== LIVE CAPTION PREVIEW ======== -->
     <section class="pp-preview" data-reveal="preview" :class="{ visible: isVisible('preview') }">
-      <h2 class="pp-section-h2 pp-center">This is what you get.</h2>
-      <p class="pp-section-sub pp-center">Real captions. For real pet businesses. Ready to post.</p>
+      <h2 class="pp-section-h2 pp-center">{{ t('previewH2') }}</h2>
+      <p class="pp-section-sub pp-center">{{ t('previewSub') }}</p>
       <div class="pp-preview-wrap">
         <div class="pp-preview-tabs">
           <button
@@ -584,8 +584,8 @@ onUnmounted(() => {
                 📸 {{ sampleCaptions[activeCaptionIdx].photo }}
               </div>
               <button class="pp-copy-btn" @click="copyCaption" :class="{ copied: copiedCaption }">
-                <span v-if="!copiedCaption">📋 Copy this caption</span>
-                <span v-else>✅ Copied! Try it on your Instagram</span>
+                <span v-if="!copiedCaption">{{ t('copyBtn') }}</span>
+                <span v-else>{{ t('copiedBtn') }}</span>
               </button>
             </div>
           </div>
@@ -599,32 +599,30 @@ onUnmounted(() => {
     <!-- ======== COMPETITOR IRRELEVANCE ======== -->
     <section class="pp-diff" data-reveal="diff" :class="{ visible: isVisible('diff') }">
       <div class="pp-diff-inner">
-        <h2 class="pp-section-h2">Buffer is for marketing teams.<br><em>This is for you.</em></h2>
+        <h2 class="pp-section-h2">{{ t('diffH2') }}<br><em>{{ t('diffH2em') }}</em></h2>
         <p class="pp-diff-body">
-          Generic tools give you a blank box and say "write something."
-          They treat a dog groomer the same as a Fortune 500 brand manager.
+          {{ t('diffBody1') }}
         </p>
         <p class="pp-diff-body">
-          PawPost knows the difference between a groom-day reveal, a holiday pet safety tip,
-          and a booking CTA for a grooming salon. Because that's <strong>all we do</strong>.
+          {{ t('diffBody2') }} <strong>{{ t('diffBody2Bold') }}</strong>.
         </p>
         <div class="pp-diff-grid">
           <div class="pp-diff-card pp-diff-card--them pp-card-tilt">
-            <div class="pp-diff-card-label">Generic tools</div>
+            <div class="pp-diff-card-label">{{ t('diffThemLabel') }}</div>
             <ul>
-              <li>Blank text box — you still write everything</li>
-              <li>Generic AI that sounds like a press release</li>
-              <li>No idea what photo to pair</li>
-              <li>Zero pet industry awareness</li>
+              <li>{{ t('diffThem1') }}</li>
+              <li>{{ t('diffThem2') }}</li>
+              <li>{{ t('diffThem3') }}</li>
+              <li>{{ t('diffThem4') }}</li>
             </ul>
           </div>
           <div class="pp-diff-card pp-diff-card--us pp-card-tilt">
-            <div class="pp-diff-card-label">PawPost AI</div>
+            <div class="pp-diff-card-label">{{ t('diffUsLabel') }}</div>
             <ul>
-              <li>30 done-for-you captions, instantly</li>
-              <li>Sounds like YOU — playful, warm, real</li>
-              <li>Photo idea with every single caption</li>
-              <li>Pet holidays, seasonal themes, your services</li>
+              <li>{{ t('diffUs1') }}</li>
+              <li>{{ t('diffUs2') }}</li>
+              <li>{{ t('diffUs3') }}</li>
+              <li>{{ t('diffUs4') }}</li>
             </ul>
           </div>
         </div>
@@ -633,8 +631,8 @@ onUnmounted(() => {
 
     <!-- ======== TESTIMONIALS ======== -->
     <section class="pp-proof" data-reveal="proof" :class="{ visible: isVisible('proof') }">
-      <h2 class="pp-section-h2 pp-center">Real results from real pet businesses.</h2>
-      <p class="pp-section-sub pp-center">Click a card to see the numbers.</p>
+      <h2 class="pp-section-h2 pp-center">{{ t('proofH2') }}</h2>
+      <p class="pp-section-sub pp-center">{{ t('proofSub') }}</p>
       <div class="pp-proof-grid">
         <div
           v-for="(t, ti) in [
@@ -657,7 +655,7 @@ onUnmounted(() => {
                   <span>{{ t.role }}</span>
                 </div>
               </div>
-              <div class="pp-proof-tap">tap to see results →</div>
+              <div class="pp-proof-tap">{{ t('proofTapResults') }}</div>
             </div>
             <div class="pp-proof-card pp-proof-back">
               <div class="pp-proof-stat">{{ t.stat }}</div>
@@ -670,7 +668,7 @@ onUnmounted(() => {
                   <span>{{ t.role }}</span>
                 </div>
               </div>
-              <div class="pp-proof-tap">← tap to read review</div>
+              <div class="pp-proof-tap">{{ t('proofTapReview') }}</div>
             </div>
           </div>
         </div>
@@ -679,61 +677,59 @@ onUnmounted(() => {
 
     <!-- ======== PRICING ======== -->
     <section class="pp-pricing" data-reveal="pricing" :class="{ visible: isVisible('pricing') }">
-      <h2 class="pp-section-h2 pp-center">Less than $1/day.<br><em>15+ hours back every month.</em></h2>
-      <p class="pp-section-sub pp-center">No contracts. No lock-in. Cancel anytime.</p>
+      <h2 class="pp-section-h2 pp-center">{{ t('pricingH2') }}<br><em>{{ t('pricingH2em') }}</em></h2>
+      <p class="pp-section-sub pp-center">{{ t('pricingSub') }}</p>
       <div class="pp-pricing-cards pp-pricing-3col">
         <!-- Free -->
         <div class="pp-pricing-card pp-card-tilt">
-          <div class="pp-pricing-name">Free</div>
-          <div class="pp-pricing-price">$0</div>
-          <div class="pp-pricing-period">Try it out, no strings attached</div>
+          <div class="pp-pricing-name">{{ t('pricingFreeName') }}</div>
+          <div class="pp-pricing-price">{{ t('pricingFreePrice') }}</div>
+          <div class="pp-pricing-period">{{ t('pricingFreePeriod') }}</div>
           <ul class="pp-pricing-features">
-            <li>7 captions + hashtags</li>
-            <li>Photo ideas included</li>
-            <li>Content calendar</li>
-            <li>1 platform (Instagram)</li>
+            <li>{{ t('pricingFree1') }}</li>
+            <li>{{ t('pricingFree2') }}</li>
+            <li>{{ t('pricingFree3') }}</li>
+            <li>{{ t('pricingFree4') }}</li>
           </ul>
-          <button class="pp-btn-outline" @click="goToOnboarding">Start Free</button>
+          <button class="pp-btn-outline" @click="goToOnboarding">{{ t('pricingFreeBtn') }}</button>
         </div>
         <!-- Premium (popular) -->
         <div class="pp-pricing-card pp-pricing-card--pop pp-card-tilt">
-          <div class="pp-pricing-badge">Most Popular</div>
-          <div class="pp-pricing-name">Premium</div>
+          <div class="pp-pricing-badge">{{ t('pricingPopBadge') }}</div>
+          <div class="pp-pricing-name">{{ t('pricingPremName') }}</div>
           <div class="pp-pricing-price">$14<span>/mo</span></div>
-          <div class="pp-pricing-period">Everything you need to post consistently</div>
+          <div class="pp-pricing-period">{{ t('pricingPremPeriod') }}</div>
           <ul class="pp-pricing-features">
-            <li>30 captions + hashtags</li>
-            <li>Photo ideas for every post</li>
-            <li>Instagram, Facebook, TikTok</li>
-            <li>Brand voice settings</li>
-            <li>Caption variants</li>
-            <li>CSV export</li>
+            <li>{{ t('pricingPrem1') }}</li>
+            <li>{{ t('pricingPrem2') }}</li>
+            <li>{{ t('pricingPrem3') }}</li>
+            <li>{{ t('pricingPrem4') }}</li>
+            <li>{{ t('pricingPrem5') }}</li>
+            <li>{{ t('pricingPrem6') }}</li>
           </ul>
-          <button class="pp-btn-primary pp-btn-full pp-btn-bounce" @click="goToOnboarding">Start 14-Day Free Trial →</button>
-          <p class="pp-pricing-note">No credit card required</p>
+          <button class="pp-btn-primary pp-btn-full pp-btn-bounce" @click="goToOnboarding">{{ t('pricingPremBtn') }}</button>
+          <p class="pp-pricing-note">{{ t('pricingPremNote') }}</p>
         </div>
         <!-- Premium Pro -->
         <div class="pp-pricing-card pp-pricing-card--pro pp-card-tilt">
-          <div class="pp-pricing-badge pp-badge-pro">Pro</div>
-          <div class="pp-pricing-name">Premium Pro</div>
+          <div class="pp-pricing-badge pp-badge-pro">{{ t('pricingProBadge') }}</div>
+          <div class="pp-pricing-name">{{ t('pricingProName') }}</div>
           <div class="pp-pricing-price">$29<span>/mo</span></div>
-          <div class="pp-pricing-period">For serious pet businesses ready to scale</div>
+          <div class="pp-pricing-period">{{ t('pricingProPeriod') }}</div>
           <ul class="pp-pricing-features">
-            <li>Everything in Premium</li>
-            <li>Multi-account support</li>
-            <li>Advanced brand voice AI</li>
-            <li>Priority caption generation</li>
-            <li>Competitor caption analysis</li>
-            <li>Dedicated support</li>
+            <li>{{ t('pricingPro1') }}</li>
+            <li>{{ t('pricingPro2') }}</li>
+            <li>{{ t('pricingPro3') }}</li>
+            <li>{{ t('pricingPro4') }}</li>
+            <li>{{ t('pricingPro5') }}</li>
+            <li>{{ t('pricingPro6') }}</li>
           </ul>
-          <button class="pp-btn-primary pp-btn-full" @click="goToOnboarding">Start 14-Day Free Trial →</button>
-          <p class="pp-pricing-note">No credit card required</p>
+          <button class="pp-btn-primary pp-btn-full" @click="goToOnboarding">{{ t('pricingPremBtn') }}</button>
+          <p class="pp-pricing-note">{{ t('pricingPremNote') }}</p>
         </div>
       </div>
       <p class="pp-pricing-anchor">
-        You're spending ~<strong>{{ calcMonthly }} hours/month</strong> on captions.
-        That's <strong>${{ (calcMonthly * 25).toLocaleString() }}</strong> in lost time.
-        PawPost Pro costs <strong>$14</strong>. Do the math.
+        {{ t('pricingAnchor1') }}<strong>{{ calcMonthly }}{{ t('pricingAnchor2') }}</strong>{{ t('pricingAnchor3') }}<strong>${{ (calcMonthly * 25).toLocaleString() }}</strong>{{ t('pricingAnchor4') }}<strong>{{ t('pricingAnchor5') }}</strong>{{ t('pricingAnchor6') }}
       </p>
     </section>
 
@@ -744,8 +740,8 @@ onUnmounted(() => {
       </div>
       <div class="pp-newsletter-inner">
         <div class="pp-newsletter-icon">📬</div>
-        <h2 class="pp-section-h2 pp-center pp-newsletter-h2">Free weekly caption ideas</h2>
-        <p class="pp-newsletter-sub">Marketing tips for pet businesses. Delivered every Monday. No fluff.</p>
+        <h2 class="pp-section-h2 pp-center pp-newsletter-h2">{{ t('nlH2') }}</h2>
+        <p class="pp-newsletter-sub">{{ t('nlSub') }}</p>
         <Transition name="newsletter-swap" mode="out-in">
           <form v-if="!newsletterSubmitted" key="form" class="pp-newsletter-form" @submit.prevent="submitNewsletter">
             <div class="pp-newsletter-input-wrap">
@@ -754,18 +750,18 @@ onUnmounted(() => {
                 v-model="newsletterEmail"
                 type="email"
                 class="pp-newsletter-input"
-                placeholder="your@email.com"
+                :placeholder="t('nlPlaceholder')"
                 required
               />
               <button type="submit" class="pp-newsletter-btn pp-btn-bounce">
-                Subscribe →
+                {{ t('nlBtn') }}
               </button>
             </div>
-            <p class="pp-newsletter-trust">Join <strong>2,400+</strong> pet business owners · Unsubscribe anytime</p>
+            <p class="pp-newsletter-trust">{{ t('nlTrust') }} <strong>{{ t('nlTrustCount') }}</strong> {{ t('nlTrustEnd') }}</p>
           </form>
           <div v-else key="success" class="pp-newsletter-success">
             <div class="pp-newsletter-success-emoji">🎉</div>
-            <p class="pp-newsletter-success-text">You're in! Check your inbox this Monday. 🐾</p>
+            <p class="pp-newsletter-success-text">{{ t('nlSuccess') }}</p>
           </div>
         </Transition>
       </div>
@@ -774,16 +770,16 @@ onUnmounted(() => {
     <!-- ======== FINAL CTA ======== -->
     <section class="pp-final" data-reveal="final" :class="{ visible: isVisible('final') }">
       <div class="pp-final-inner">
-        <p class="pp-final-pre">Bottom line</p>
+        <p class="pp-final-pre">{{ t('finalPre') }}</p>
         <h2 class="pp-final-h2">
-          You started this business to<br>work with animals —<br>
-          <em>not to write Instagram captions.</em>
+          {{ t('finalH2a') }}<br>{{ t('finalH2b') }}<br>
+          <em>{{ t('finalH2em') }}</em>
         </h2>
-        <p class="pp-final-sub">Get 30 days of content in 60 seconds. Free.</p>
+        <p class="pp-final-sub">{{ t('finalSub') }}</p>
         <button class="pp-btn-primary pp-btn-lg pp-btn-bounce" @click="goToOnboarding">
-          Generate My Free Caption Pack →
+          {{ t('finalCta') }}
         </button>
-        <p class="pp-final-note">No credit card. No catch. Takes 60 seconds.</p>
+        <p class="pp-final-note">{{ t('finalNote') }}</p>
       </div>
     </section>
 
@@ -814,8 +810,8 @@ onUnmounted(() => {
             <div v-if="!popupSubmitted" key="form" class="pp-popup-content">
               <button class="pp-popup-close" @click="dismissPopup" aria-label="Close popup">✕</button>
               <div class="pp-popup-emoji">🎁</div>
-              <h3 class="pp-popup-title">Free: 10 Instagram Caption Templates for Pet Businesses 🐾</h3>
-              <p class="pp-popup-sub">Steal these ready-to-post captions — no writing required.</p>
+              <h3 class="pp-popup-title">{{ t('popupTitle') }}</h3>
+              <p class="pp-popup-sub">{{ t('popupSub') }}</p>
               <form class="pp-popup-form" @submit.prevent="submitPopup">
                 <div class="pp-popup-input-wrap">
                   <span class="pp-popup-input-icon">🐾</span>
@@ -828,19 +824,19 @@ onUnmounted(() => {
                   />
                 </div>
                 <button type="submit" class="pp-popup-submit pp-btn-bounce">
-                  Send Me The Templates 🐾
+                  {{ t('popupBtn') }}
                 </button>
               </form>
               <button class="pp-popup-dismiss" @click="dismissPopup">
-                Nah, I love writing captions 😅
+                {{ t('popupDismiss') }}
               </button>
             </div>
 
             <!-- Success state -->
             <div v-else key="success" class="pp-popup-content pp-popup-success">
               <div class="pp-popup-success-emoji">🎉</div>
-              <h3 class="pp-popup-title">Check your inbox! 📬</h3>
-              <p class="pp-popup-sub">Your 10 free caption templates are on the way. Go pet a dog while you wait! 🐶💛</p>
+              <h3 class="pp-popup-title">{{ t('popupSuccessTitle') }}</h3>
+              <p class="pp-popup-sub">{{ t('popupSuccessSub') }}</p>
               <div class="pp-popup-success-paw">🐾</div>
             </div>
           </Transition>
@@ -868,10 +864,10 @@ onUnmounted(() => {
     <footer class="pp-footer">
       <div class="pp-footer-inner">
         <div class="pp-logo">
-          <span class="pp-logo-paw">🐾</span>
+          <img src="/logo.png" alt="PawPost AI" class="pp-logo-img" />
           <span class="pp-logo-text">PawPost <span class="pp-logo-ai">AI</span></span>
         </div>
-        <p>Social media captions made for pet businesses — not marketing teams.</p>
+        <p>{{ t('footerText') }}</p>
       </div>
     </footer>
   </div>
@@ -940,11 +936,14 @@ onUnmounted(() => {
   gap: 0.5rem;
   cursor: pointer;
 }
-.pp-logo-paw {
-  font-size: 1.5rem;
+.pp-logo-img {
+  height: 28px;
+  width: 28px;
+  object-fit: contain;
+  border-radius: 6px;
   transition: transform 0.3s;
 }
-.pp-logo:hover .pp-logo-paw {
+.pp-logo:hover .pp-logo-img {
   animation: pawWiggle 0.5s ease;
 }
 .pp-logo-text {
@@ -954,6 +953,37 @@ onUnmounted(() => {
   color: #1C1917;
 }
 .pp-logo-ai { color: #D97706; }
+.pp-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.pp-lang-toggle {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(28, 25, 23, 0.06);
+  border-radius: 100px;
+  padding: 0.2rem;
+}
+.pp-lang-btn {
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.3rem 0.5rem;
+  border-radius: 100px;
+  transition: all 0.2s;
+  opacity: 0.5;
+  line-height: 1;
+}
+.pp-lang-btn.active {
+  background: #fff;
+  opacity: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+.pp-lang-btn:hover {
+  opacity: 1;
+}
 .pp-nav-cta {
   background: #1C1917;
   color: #fff;
