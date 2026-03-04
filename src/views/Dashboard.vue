@@ -50,6 +50,7 @@ const igTokenExpiry = ref(0)
 const postingStatus = ref(null) // null | 'posting' | 'success' | 'error'
 const postingError = ref('')
 const showImageUrlModal = ref(false)
+const showDetailExtras = ref(false)
 const imageUrlInput = ref('')
 const pendingPostCaption = ref('')
 
@@ -526,6 +527,7 @@ async function postToInstagram() {
 
 function selectDay(day) {
   if (day.empty) return
+  showDetailExtras.value = false
   selectedDay.value = selectedDay.value?.date === day.date && selectedDay.value?.month === day.month ? null : day
 }
 
@@ -566,7 +568,7 @@ function getTrendingSounds(category, platform) {
 
 const businessLabel = computed(() => {
   if (!profile.value) return ''
-  const types = { groomer:'Dog Groomer', walker:'Dog Walker', trainer:'Dog Trainer', sitter:'Pet Sitter', daycare:'Doggy Daycare', vet:'Vet Clinic', photographer:'Pet Photographer', store:'Pet Store', bakery:'Dog Bakery' }
+  const types = { groomer:'Dog Groomer', walker:'Dog Walker', trainer:'Dog Trainer', sitter:'Pet Sitter', daycare:'Doggy Daycare', vet:'Vet Clinic', photographer:'Pet Photographer', store:'Pet Store', bakery:'Dog Bakery', supplier:'Pet Supplier', food_brand:'Pet Food Brand', wholesale:'Importer / Wholesale', insurance:'Pet Insurance', education:'Pet Education', influencer:'Pet Influencer' }
   return types[profile.value.businessTypeId] || profile.value.businessType || 'Pet Business'
 })
 
@@ -994,8 +996,13 @@ function exportCSV() {
                   </div>
                 </div>
 
+                <!-- Show More toggle -->
+                <button class="dash-detail-toggle" @click="showDetailExtras = !showDetailExtras">
+                  {{ showDetailExtras ? '▲ Show less' : '▼ More tips & ideas' }}
+                </button>
+
                 <!-- CTA -->
-                <div class="dash-detail-section">
+                <div v-show="showDetailExtras" class="dash-detail-section">
                   <span class="dash-detail-label">📣 Call to Action</span>
                   <div class="dash-cta-box">
                     <p class="dash-cta-text">{{ getCTA(selectedDay.caption?.category, selectedDay.date) }}</p>
@@ -1007,7 +1014,7 @@ function exportCSV() {
                 </div>
 
                 <!-- Engagement Hook -->
-                <div v-if="selectedDay.caption?.engagementHook" class="dash-detail-section">
+                <div v-if="showDetailExtras && selectedDay.caption?.engagementHook" class="dash-detail-section">
                   <span class="dash-detail-label">🔥 Engagement Boost</span>
                   <div class="dash-engage-box">
                     <div class="dash-engage-type-row">
@@ -1038,7 +1045,7 @@ function exportCSV() {
                 </div>
 
                 <!-- SEO Keywords -->
-                <div class="dash-detail-section">
+                <div v-show="showDetailExtras" class="dash-detail-section">
                   <span class="dash-detail-label">🔍 SEO Keywords</span>
                   <div class="dash-seo-box">
                     <div class="dash-seo-group">
@@ -1057,7 +1064,7 @@ function exportCSV() {
                 </div>
 
                 <!-- Image ideas -->
-                <div class="dash-detail-section">
+                <div v-show="showDetailExtras" class="dash-detail-section">
                   <span class="dash-detail-label">📷 Photo & Visual Ideas</span>
                   <div class="dash-detail-photo-gallery">
                     <img v-for="(photo, pi) in [getPhoto(selectedDay.caption, 0), getCategoryPhoto(selectedDay.caption?.category, 1), getCategoryPhoto(selectedDay.caption?.category, 2)]" :key="pi"
@@ -1072,7 +1079,7 @@ function exportCSV() {
                 </div>
 
                 <!-- Video idea (TikTok-focused) -->
-                <div v-if="selectedDay.caption?.videoIdea" class="dash-detail-section">
+                <div v-if="showDetailExtras && selectedDay.caption?.videoIdea" class="dash-detail-section">
                   <span class="dash-detail-label">🎬 Video Idea</span>
                   <div class="dash-video-box">
                     <p class="dash-video-text">{{ selectedDay.caption.videoIdea }}</p>
@@ -1084,7 +1091,7 @@ function exportCSV() {
                 </div>
 
                 <!-- Trending sounds -->
-                <div class="dash-detail-section">
+                <div v-show="showDetailExtras" class="dash-detail-section">
                   <span class="dash-detail-label">🎵 Trending Sounds</span>
                   <div class="dash-detail-sounds">
                     <div v-for="sound in getTrendingSounds(selectedDay.caption?.category, detailPlatform)" :key="sound.name" class="dash-sound-item">
@@ -1101,7 +1108,7 @@ function exportCSV() {
                 </div>
 
                 <!-- Theme tip -->
-                <div class="dash-detail-tip">
+                <div v-show="showDetailExtras" class="dash-detail-tip">
                   <span class="dash-detail-tip-label">💡 Content Tip</span>
                   <p>{{ selectedDay.theme?.suggestion }}</p>
                 </div>
@@ -2003,6 +2010,8 @@ function exportCSV() {
 .dash-sound-platform { font-size: 14px; }
 .dash-sound-none { font-size: 13px; color: var(--text-tertiary); margin: 0; }
 
+.dash-detail-toggle { display: block; width: 100%; padding: 10px; background: var(--bg-card); border: 1px dashed var(--border); border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; margin: 8px 0 16px; transition: all 0.2s; }
+.dash-detail-toggle:hover { border-color: #f59e0b; color: #f59e0b; }
 .dash-detail-tip { background: #fefce8; border-radius: 14px; padding: 16px; margin-bottom: 20px; }
 .dash-root.dark .dash-detail-tip { background: rgba(254,252,232,0.08); }
 .dash-detail-tip-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #a16207; display: block; margin-bottom: 4px; }

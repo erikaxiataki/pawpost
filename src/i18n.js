@@ -54,6 +54,7 @@ const translations = {
     pillWholesale: 'Importers',
     pillInsurance: 'Pet Insurance',
     pillEducation: 'Pet Courses',
+    pillInfluencer: 'Influencers',
 
     /* Hero card */
     heroCardBiz: 'Pawfect Grooming',
@@ -236,6 +237,7 @@ const translations = {
     pillWholesale: 'Importadores',
     pillInsurance: 'Seguro Pet',
     pillEducation: 'Cursos Pet',
+    pillInfluencer: 'Influenciadores',
 
     /* Hero card */
     heroCardBiz: 'Pawfect Grooming',

@@ -414,6 +414,7 @@ onUnmounted(() => {
               { emoji: '📦', label: t('pillWholesale') },
               { emoji: '🛡️', label: t('pillInsurance') },
               { emoji: '🎓', label: t('pillEducation') },
+              { emoji: '⭐', label: t('pillInfluencer') },
             ]"
             :key="pi"
             class="pp-pill"

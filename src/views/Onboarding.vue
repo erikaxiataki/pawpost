@@ -33,6 +33,7 @@ const businessTypes = [
   { id: 'wholesale', label: 'Importer / Wholesale', emoji: '📦' },
   { id: 'insurance', label: 'Pet Insurance', emoji: '🛡️' },
   { id: 'education', label: 'Pet Education / Courses', emoji: '🎓' },
+  { id: 'influencer', label: 'Pet Influencer / Creator', emoji: '⭐' },
   { id: 'other', label: 'Other', emoji: '🐾' },
 ]
 
