@@ -146,22 +146,54 @@ function isVisible(id) {
 /* ---- Pill hover wiggle ---- */
 const wigglePill = ref(-1)
 
-/* ---- Typewriter effect ---- */
-const typewriterDone = ref(false)
+/* ---- Rotating Typewriter effect ---- */
 const typewriterText = ref('')
-const fullText = 'Start growing.'
+const typewriterPhrase = ref(0)
+const isDeleting = ref(false)
+const rotatingPhrases = [
+  'Start posting.',
+  'Start booking.',
+  'Start standing out.',
+  'Get your weekends back.',
+  'Let AI do the work.',
+  'Go walk some dogs.',
+]
 function startTypewriter() {
-  let i = 0
-  function type() {
-    if (i <= fullText.length) {
-      typewriterText.value = fullText.slice(0, i)
-      i++
-      setTimeout(type, 80 + Math.random() * 60)
+  let charIdx = 0
+  let phraseIdx = 0
+  const typeSpeed = 70
+  const deleteSpeed = 40
+  const pauseAfterType = 2000
+  const pauseAfterDelete = 400
+
+  function tick() {
+    const currentPhrase = rotatingPhrases[phraseIdx]
+    if (!isDeleting.value) {
+      // Typing
+      charIdx++
+      typewriterText.value = currentPhrase.slice(0, charIdx)
+      if (charIdx >= currentPhrase.length) {
+        // Pause, then start deleting
+        isDeleting.value = true
+        setTimeout(tick, pauseAfterType)
+        return
+      }
+      setTimeout(tick, typeSpeed + Math.random() * 40)
     } else {
-      typewriterDone.value = true
+      // Deleting
+      charIdx--
+      typewriterText.value = currentPhrase.slice(0, charIdx)
+      if (charIdx <= 0) {
+        isDeleting.value = false
+        phraseIdx = (phraseIdx + 1) % rotatingPhrases.length
+        typewriterPhrase.value = phraseIdx
+        setTimeout(tick, pauseAfterDelete)
+        return
+      }
+      setTimeout(tick, deleteSpeed)
     }
   }
-  setTimeout(type, 800)
+  setTimeout(tick, 800)
 }
 
 /* ---- Copy to clipboard ---- */
@@ -175,14 +207,6 @@ function copyCaption() {
   })
 }
 
-/* ---- Live stats counter ---- */
-const liveCount = ref(127849)
-let statsTimer = null
-function tickStats() {
-  statsTimer = setInterval(() => {
-    liveCount.value += Math.floor(Math.random() * 3) + 1
-  }, 3000 + Math.random() * 4000)
-}
 
 /* ---- Before/After interactive toggle ---- */
 const showAfter = ref(false)
@@ -275,14 +299,12 @@ onMounted(() => {
   spawnPopupPaws()
   startTypewriter()
   resetCaptionTimer()
-  tickStats()
   initPopup()
   setTimeout(setupObserver, 100)
   window.addEventListener('mousemove', handleMouseMove)
 })
 onUnmounted(() => {
   clearInterval(captionTimer)
-  clearInterval(statsTimer)
   clearTimeout(popupTimer)
   if (observer) observer.disconnect()
   window.removeEventListener('mousemove', handleMouseMove)
@@ -328,23 +350,21 @@ onUnmounted(() => {
       </div>
 
       <div class="pp-hero-content">
-        <!-- Live counter badge -->
+        <!-- Badge -->
         <div class="pp-hero-badge animate-in">
-          <span class="pp-live-dot"></span>
-          {{ liveCount.toLocaleString() }} captions generated
+          Built for pet businesses in Canada 🇨🇦
         </div>
 
         <h1 class="pp-hero-h1 animate-in d1">
           Stop writing captions.<br>
           <em class="pp-hero-em">
-            <template v-if="!typewriterDone">{{ typewriterText }}<span class="pp-cursor">|</span></template>
-            <template v-else>Start growing.</template>
+            {{ typewriterText }}<span class="pp-cursor">|</span>
           </em>
         </h1>
 
         <p class="pp-hero-sub animate-in d2">
-          30 days of social media content for your pet business — generated in under 60 seconds.
-          Captions that sound like <strong>you</strong>, not a robot.
+          30 days of social media captions for your pet business, generated in 60 seconds.
+          Captions that actually sound like <strong>you</strong>, not a robot!
         </p>
 
         <div class="pp-hero-pills animate-in d2">
@@ -661,33 +681,53 @@ onUnmounted(() => {
     <section class="pp-pricing" data-reveal="pricing" :class="{ visible: isVisible('pricing') }">
       <h2 class="pp-section-h2 pp-center">Less than $1/day.<br><em>15+ hours back every month.</em></h2>
       <p class="pp-section-sub pp-center">No contracts. No lock-in. Cancel anytime.</p>
-      <div class="pp-pricing-cards">
+      <div class="pp-pricing-cards pp-pricing-3col">
+        <!-- Free -->
         <div class="pp-pricing-card pp-card-tilt">
           <div class="pp-pricing-name">Free</div>
           <div class="pp-pricing-price">$0</div>
-          <div class="pp-pricing-period">7 days of captions</div>
+          <div class="pp-pricing-period">Try it out, no strings attached</div>
           <ul class="pp-pricing-features">
             <li>7 captions + hashtags</li>
             <li>Photo ideas included</li>
             <li>Content calendar</li>
+            <li>1 platform (Instagram)</li>
           </ul>
           <button class="pp-btn-outline" @click="goToOnboarding">Start Free</button>
         </div>
+        <!-- Premium (popular) -->
         <div class="pp-pricing-card pp-pricing-card--pop pp-card-tilt">
-          <div class="pp-pricing-badge">🔥 Best value</div>
-          <div class="pp-pricing-name">Pro</div>
+          <div class="pp-pricing-badge">Most Popular</div>
+          <div class="pp-pricing-name">Premium</div>
           <div class="pp-pricing-price">$14<span>/mo</span></div>
-          <div class="pp-pricing-period">Full month · Unlimited regeneration</div>
+          <div class="pp-pricing-period">Everything you need to post consistently</div>
           <ul class="pp-pricing-features">
             <li>30 captions + hashtags</li>
             <li>Photo ideas for every post</li>
             <li>Instagram, Facebook, TikTok</li>
-            <li>Brand voice memory</li>
+            <li>Brand voice settings</li>
             <li>Caption variants</li>
             <li>CSV export</li>
           </ul>
-          <button class="pp-btn-primary pp-btn-full pp-btn-bounce" @click="goToOnboarding">Generate My Free Caption Pack →</button>
-          <p class="pp-pricing-note">14-day free trial · Cancel anytime</p>
+          <button class="pp-btn-primary pp-btn-full pp-btn-bounce" @click="goToOnboarding">Start 14-Day Free Trial →</button>
+          <p class="pp-pricing-note">No credit card required</p>
+        </div>
+        <!-- Premium Pro -->
+        <div class="pp-pricing-card pp-pricing-card--pro pp-card-tilt">
+          <div class="pp-pricing-badge pp-badge-pro">Pro</div>
+          <div class="pp-pricing-name">Premium Pro</div>
+          <div class="pp-pricing-price">$29<span>/mo</span></div>
+          <div class="pp-pricing-period">For serious pet businesses ready to scale</div>
+          <ul class="pp-pricing-features">
+            <li>Everything in Premium</li>
+            <li>Multi-account support</li>
+            <li>Advanced brand voice AI</li>
+            <li>Priority caption generation</li>
+            <li>Competitor caption analysis</li>
+            <li>Dedicated support</li>
+          </ul>
+          <button class="pp-btn-primary pp-btn-full" @click="goToOnboarding">Start 14-Day Free Trial →</button>
+          <p class="pp-pricing-note">No credit card required</p>
         </div>
       </div>
       <p class="pp-pricing-anchor">
@@ -1917,8 +1957,13 @@ onUnmounted(() => {
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 640px) {
+.pp-pricing-3col {
+  max-width: 64rem;
+  grid-template-columns: 1fr 1.12fr 1fr;
+}
+@media (max-width: 768px) {
   .pp-pricing-cards { grid-template-columns: 1fr; }
+  .pp-pricing-3col { grid-template-columns: 1fr; }
 }
 .pp-pricing-card {
   border: 2px solid #E7E5E4;
@@ -1929,6 +1974,13 @@ onUnmounted(() => {
 .pp-pricing-card--pop {
   border-color: #D97706;
   box-shadow: 0 12px 40px rgba(217, 119, 6, 0.12);
+}
+.pp-pricing-card--pro {
+  border-color: #1C1917;
+  background: linear-gradient(180deg, #FAFAF9 0%, #F5F5F4 100%);
+}
+.pp-badge-pro {
+  background: linear-gradient(135deg, #1C1917, #44403C) !important;
 }
 .pp-pricing-badge {
   position: absolute;
