@@ -969,7 +969,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .pp-logo-img {
-  height: 120px;
+  height: 80px;
   width: auto;
   object-fit: contain;
   border-radius: 6px;
