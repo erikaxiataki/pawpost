@@ -47,20 +47,30 @@ export default async function handler(req, res) {
       return res.status(200).json({ step: 'pages', error: 'No pages found', pagesData })
     }
 
-    const page = pagesData.data[0]
-    const pageToken = page.access_token
-    const pageId = page.id
-    const pageName = page.name
+    // Check ALL pages for an Instagram Business Account
+    let page = null
+    let igUserId = null
+    let pageToken = null
+    let pageId = null
+    let pageName = null
 
-    // Step 4: Get Instagram Business Account
-    const igRes = await fetch('https://graph.facebook.com/v21.0/' + pageId + '?fields=instagram_business_account&access_token=' + pageToken)
-    const igData = await igRes.json()
-
-    if (!igData.instagram_business_account) {
-      return res.status(200).json({ step: 'instagram', error: 'No IG business account', pageName, igData })
+    const allPages = []
+    for (const p of pagesData.data) {
+      const igCheck = await fetch('https://graph.facebook.com/v21.0/' + p.id + '?fields=instagram_business_account&access_token=' + p.access_token)
+      const igCheckData = await igCheck.json()
+      allPages.push({ name: p.name, id: p.id, hasIG: !!igCheckData.instagram_business_account })
+      if (igCheckData.instagram_business_account && !page) {
+        page = p
+        igUserId = igCheckData.instagram_business_account.id
+        pageToken = p.access_token
+        pageId = p.id
+        pageName = p.name
+      }
     }
 
-    const igUserId = igData.instagram_business_account.id
+    if (!page || !igUserId) {
+      return res.status(200).json({ step: 'instagram', error: 'No page has an IG business account linked', allPages })
+    }
 
     // Step 5: Get IG info
     const igInfoRes = await fetch('https://graph.facebook.com/v21.0/' + igUserId + '?fields=username,profile_picture_url,name&access_token=' + pageToken)
