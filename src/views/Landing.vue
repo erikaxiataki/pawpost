@@ -971,8 +971,8 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .pp-logo-img {
-  height: 100px;
-  width: 100px;
+  height: 160px;
+  width: 160px;
   object-fit: contain;
   border-radius: 6px;
   transition: transform 0.3s;
