@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   const redirectUri = 'https://pawpost.ca/api/meta-callback'
 
   if (!appId || !appSecret) {
-    return res.redirect(302, '/dashboard?meta=error&reason=config')
+    return res.redirect(302, '/dashboard?meta=error&reason=config_missing')
   }
 
   try {
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     if (tokenData.error) {
       console.error('Token exchange error:', tokenData.error)
-      return res.redirect(302, '/dashboard?meta=error&reason=token')
+      return res.redirect(302, `/dashboard?meta=error&reason=token&detail=${encodeURIComponent(tokenData.error.message || 'unknown')}`)
     }
 
     const shortToken = tokenData.access_token
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
     if (longData.error) {
       console.error('Long token error:', longData.error)
-      return res.redirect(302, '/dashboard?meta=error&reason=long_token')
+      return res.redirect(302, `/dashboard?meta=error&reason=long_token&detail=${encodeURIComponent(longData.error.message || 'unknown')}`)
     }
 
     const accessToken = longData.access_token
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     const igData = await igRes.json()
 
     if (!igData.instagram_business_account) {
-      return res.redirect(302, '/dashboard?meta=error&reason=no_instagram')
+      return res.redirect(302, `/dashboard?meta=error&reason=no_instagram&page=${encodeURIComponent(pageName)}`)
     }
 
     const igUserId = igData.instagram_business_account.id
@@ -90,6 +90,6 @@ export default async function handler(req, res) {
     res.redirect(302, `/dashboard?${params.toString()}`)
   } catch (err) {
     console.error('Meta callback error:', err.message)
-    res.redirect(302, '/dashboard?meta=error&reason=server')
+    res.redirect(302, `/dashboard?meta=error&reason=server&detail=${encodeURIComponent(err.message || 'unknown')}`)
   }
 }

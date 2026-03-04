@@ -196,17 +196,19 @@ onMounted(() => {
     window.history.replaceState({}, '', '/dashboard')
   } else if (urlParams.get('meta') === 'error') {
     const reason = urlParams.get('reason')
+    const detail = urlParams.get('detail') || ''
     const errorMessages = {
       auth_denied: 'You cancelled the Instagram connection.',
       no_pages: 'No Facebook Page found. You need a Facebook Business Page linked to an Instagram Business account.',
-      no_instagram: 'No Instagram Business account found linked to your Facebook Page.',
-      token: 'Authentication failed. Please try again.',
-      config: 'Server configuration error. Contact support.',
-      server: 'Something went wrong. Please try again.',
+      no_instagram: `No Instagram Business account found linked to your Facebook Page${urlParams.get('page') ? ' (' + urlParams.get('page') + ')' : ''}. Make sure your Instagram is a Business/Creator account linked to your Facebook Page.`,
+      token: `Authentication failed: ${detail || 'Please try again.'}`,
+      long_token: `Token exchange failed: ${detail || 'Please try again.'}`,
+      config_missing: 'Server configuration error — META_APP_ID or META_APP_SECRET not set.',
+      server: `Something went wrong: ${detail || 'Please try again.'}`,
     }
-    postingError.value = errorMessages[reason] || 'Connection failed. Please try again.'
+    postingError.value = errorMessages[reason] || `Connection failed (${reason}): ${detail || 'Please try again.'}`
     postingStatus.value = 'error'
-    setTimeout(() => { postingStatus.value = null; postingError.value = '' }, 6000)
+    setTimeout(() => { postingStatus.value = null; postingError.value = '' }, 15000)
     window.history.replaceState({}, '', '/dashboard')
   }
 })
