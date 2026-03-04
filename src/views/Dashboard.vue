@@ -452,10 +452,6 @@ function copyCaption(caption, platform, id) {
 
 /* ---- Instagram Direct Posting ---- */
 function connectInstagram() {
-  if (!isProUser.value) {
-    showProGate.value = true
-    return
-  }
   window.location.href = '/api/meta-auth'
 }
 
