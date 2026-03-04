@@ -959,9 +959,8 @@ onUnmounted(() => {
   margin: 0 auto;
   padding: 0.5rem 1.5rem;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  gap: 1rem;
 }
 .pp-logo {
   display: flex;
