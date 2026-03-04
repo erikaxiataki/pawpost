@@ -1439,7 +1439,7 @@ function exportCSV() {
   position: fixed; top: 60px; right: 24px; z-index: 200;
   width: 280px; background: var(--bg-card); border-radius: 16px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
-  padding: 20px; overflow: hidden;
+  padding: 20px; overflow-y: auto; max-height: calc(100vh - 80px);
 }
 .dash-overlay { position: fixed; inset: 0; z-index: 150; }
 .dash-profile-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
