@@ -957,20 +957,21 @@ onUnmounted(() => {
 .pp-nav-inner {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1rem 1.5rem;
+  padding: 0.5rem 1.5rem;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: 1rem;
 }
 .pp-logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   cursor: pointer;
 }
 .pp-logo-img {
-  height: 200px;
-  width: 200px;
+  height: 120px;
+  width: auto;
   object-fit: contain;
   border-radius: 6px;
   transition: transform 0.3s;
@@ -981,7 +982,7 @@ onUnmounted(() => {
 .pp-logo-text {
   font-family: 'Fraunces', Georgia, serif;
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   color: #1C1917;
 }
 .pp-logo-ai { color: #D97706; }
