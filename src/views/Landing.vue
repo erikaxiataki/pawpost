@@ -358,9 +358,6 @@ onUnmounted(() => {
             <button :class="['pp-lang-btn', locale === 'en' && 'active']" @click="setLocale('en')" title="English">🇨🇦</button>
             <button :class="['pp-lang-btn', locale === 'pt' && 'active']" @click="setLocale('pt')" title="Português">🇧🇷</button>
           </div>
-          <button class="pp-nav-cta" @click="goToOnboarding">
-            {{ t('navCta') }}
-          </button>
         </div>
       </div>
     </nav>
@@ -974,8 +971,8 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .pp-logo-img {
-  height: 28px;
-  width: 28px;
+  height: 60px;
+  width: 60px;
   object-fit: contain;
   border-radius: 6px;
   transition: transform 0.3s;
