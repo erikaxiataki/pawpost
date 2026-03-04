@@ -40,6 +40,19 @@ const brandVoiceSaved = ref(false)
 const showProGate = ref(false)
 const isProUser = ref(false) // Future: real auth check
 
+/* ---- Instagram Direct Posting (Pro Feature) ---- */
+const metaConnected = ref(false)
+const igUsername = ref('')
+const igProfilePic = ref('')
+const igUserId = ref('')
+const igAccessToken = ref('')
+const igTokenExpiry = ref(0)
+const postingStatus = ref(null) // null | 'posting' | 'success' | 'error'
+const postingError = ref('')
+const showImageUrlModal = ref(false)
+const imageUrlInput = ref('')
+const pendingPostCaption = ref('')
+
 const toneOptions = [
   { id: 'warm', label: 'Warm & Friendly', icon: '💛', desc: 'Approachable, like a friend' },
   { id: 'funny', label: 'Funny & Bold', icon: '😎', desc: 'Humor, memes, personality' },
@@ -143,6 +156,58 @@ onMounted(() => {
   isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
   // Set initial tone from onboarding vibe
   if (!savedVoice && profile.value?.vibe) brandVoice.value.tone = profile.value.vibe
+
+  // Load Meta/Instagram connection
+  const savedMeta = localStorage.getItem('pawpost_meta')
+  if (savedMeta) {
+    const meta = JSON.parse(savedMeta)
+    metaConnected.value = true
+    igUsername.value = meta.username || ''
+    igProfilePic.value = meta.profilePic || ''
+    igUserId.value = meta.userId || ''
+    igAccessToken.value = meta.accessToken || ''
+    igTokenExpiry.value = meta.tokenExpiry || 0
+    // Check if token is expired
+    if (Date.now() > meta.tokenExpiry) {
+      metaConnected.value = false
+      localStorage.removeItem('pawpost_meta')
+    }
+  }
+
+  // Handle Meta OAuth callback params
+  const urlParams = new URLSearchParams(window.location.search)
+  if (urlParams.get('meta') === 'connected') {
+    const metaData = {
+      userId: urlParams.get('ig_user_id'),
+      username: urlParams.get('ig_username'),
+      profilePic: urlParams.get('ig_pic'),
+      accessToken: urlParams.get('access_token'),
+      tokenExpiry: parseInt(urlParams.get('token_expiry')),
+    }
+    localStorage.setItem('pawpost_meta', JSON.stringify(metaData))
+    metaConnected.value = true
+    igUsername.value = metaData.username
+    igProfilePic.value = metaData.profilePic
+    igUserId.value = metaData.userId
+    igAccessToken.value = metaData.accessToken
+    igTokenExpiry.value = metaData.tokenExpiry
+    // Clean URL params
+    window.history.replaceState({}, '', '/dashboard')
+  } else if (urlParams.get('meta') === 'error') {
+    const reason = urlParams.get('reason')
+    const errorMessages = {
+      auth_denied: 'You cancelled the Instagram connection.',
+      no_pages: 'No Facebook Page found. You need a Facebook Business Page linked to an Instagram Business account.',
+      no_instagram: 'No Instagram Business account found linked to your Facebook Page.',
+      token: 'Authentication failed. Please try again.',
+      config: 'Server configuration error. Contact support.',
+      server: 'Something went wrong. Please try again.',
+    }
+    postingError.value = errorMessages[reason] || 'Connection failed. Please try again.'
+    postingStatus.value = 'error'
+    setTimeout(() => { postingStatus.value = null; postingError.value = '' }, 6000)
+    window.history.replaceState({}, '', '/dashboard')
+  }
 })
 
 function toggleDark() {
@@ -384,6 +449,81 @@ function copyCaption(caption, platform, id) {
   setTimeout(() => copiedId.value = null, 2000)
 }
 
+/* ---- Instagram Direct Posting ---- */
+function connectInstagram() {
+  if (!isProUser.value) {
+    showProGate.value = true
+    return
+  }
+  window.location.href = '/api/meta-auth'
+}
+
+function disconnectInstagram() {
+  localStorage.removeItem('pawpost_meta')
+  metaConnected.value = false
+  igUsername.value = ''
+  igProfilePic.value = ''
+  igUserId.value = ''
+  igAccessToken.value = ''
+}
+
+function startPostToInstagram(caption, platform) {
+  if (!isProUser.value) {
+    showProGate.value = true
+    return
+  }
+  if (!metaConnected.value) {
+    connectInstagram()
+    return
+  }
+  // Build the caption text
+  const dayKey = `${selectedDay.value?.date}-${selectedDay.value?.month}`
+  const customText = captionEdits.value[dayKey]
+  const text = customText || formatForPlatform(caption, platform)
+  const full = text + '\n\n' + getHashtags(caption, platform)
+  pendingPostCaption.value = full
+  imageUrlInput.value = caption?.photo || ''
+  showImageUrlModal.value = true
+}
+
+async function postToInstagram() {
+  if (!imageUrlInput.value || !pendingPostCaption.value) return
+  showImageUrlModal.value = false
+  postingStatus.value = 'posting'
+
+  try {
+    const res = await fetch('/api/post-to-instagram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caption: pendingPostCaption.value,
+        imageUrl: imageUrlInput.value,
+        accessToken: igAccessToken.value,
+        igUserId: igUserId.value,
+      }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      postingStatus.value = 'success'
+      // Mark this day as posted
+      if (selectedDay.value) {
+        const dayKey = `${selectedDay.value.date}-${selectedDay.value.month}`
+        postedDays.value[dayKey] = true
+        localStorage.setItem('pawpost_posted', JSON.stringify(postedDays.value))
+      }
+      setTimeout(() => postingStatus.value = null, 4000)
+    } else {
+      postingError.value = data.detail || data.error || 'Failed to post'
+      postingStatus.value = 'error'
+      setTimeout(() => { postingStatus.value = null; postingError.value = '' }, 6000)
+    }
+  } catch (err) {
+    postingError.value = 'Network error. Please try again.'
+    postingStatus.value = 'error'
+    setTimeout(() => { postingStatus.value = null; postingError.value = '' }, 6000)
+  }
+}
+
 function selectDay(day) {
   if (day.empty) return
   selectedDay.value = selectedDay.value?.date === day.date && selectedDay.value?.month === day.month ? null : day
@@ -534,6 +674,18 @@ function exportCSV() {
           </div>
           <p class="dash-freq-hint">≈ {{ frequencyOptions.find(o => o.value === (profile.frequency || 'daily'))?.posts }} posts per month</p>
         </div>
+        <!-- Instagram Connection -->
+        <div class="dash-ig-connect">
+          <div v-if="metaConnected" class="dash-ig-connected">
+            <img v-if="igProfilePic" :src="igProfilePic" class="dash-ig-avatar" alt="" />
+            <span class="dash-ig-user">📸 @{{ igUsername }}</span>
+            <button @click="disconnectInstagram" class="dash-ig-disconnect">Disconnect</button>
+          </div>
+          <button v-else @click="connectInstagram" class="dash-ig-connect-btn">
+            📸 Connect Instagram{{ !isProUser ? ' (Pro)' : '' }}
+          </button>
+        </div>
+
         <button @click="resetProfile" class="dash-profile-reset">Redo Onboarding</button>
       </div>
     </Transition>
@@ -955,10 +1107,21 @@ function exportCSV() {
                 </div>
 
                 <!-- Copy button -->
-                <button @click="copyCaption(currentVariants[activeVariant] || selectedDay.caption, detailPlatform, 'detail')"
-                  :class="['dash-copy-btn', copiedId === 'detail' && 'copied']">
-                  {{ copiedId === 'detail' ? '✓ Copied to clipboard' : `Copy for ${platformFormats[detailPlatform]?.label}` }}
-                </button>
+                <div class="dash-action-btns">
+                  <button @click="copyCaption(currentVariants[activeVariant] || selectedDay.caption, detailPlatform, 'detail')"
+                    :class="['dash-copy-btn', copiedId === 'detail' && 'copied']">
+                    {{ copiedId === 'detail' ? '✓ Copied to clipboard' : `Copy for ${platformFormats[detailPlatform]?.label}` }}
+                  </button>
+                  <button v-if="detailPlatform === 'instagram'"
+                    @click="startPostToInstagram(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)"
+                    :class="['dash-post-btn', postingStatus === 'success' && 'posted', postingStatus === 'posting' && 'posting']"
+                    :disabled="postingStatus === 'posting'">
+                    <template v-if="postingStatus === 'posting'">⏳ Posting...</template>
+                    <template v-else-if="postingStatus === 'success'">✅ Posted!</template>
+                    <template v-else>📤 Post to Instagram{{ !isProUser ? ' (Pro)' : '' }}</template>
+                  </button>
+                </div>
+                <p v-if="postingStatus === 'error' && postingError" class="dash-post-error">{{ postingError }}</p>
               </div>
             </div>
           </div>
@@ -1146,6 +1309,27 @@ function exportCSV() {
 
     </main>
 
+    <!-- Image URL Modal (for Instagram posting) -->
+    <Transition name="dropdown">
+      <div v-if="showImageUrlModal" class="dash-pro-overlay" @click.self="showImageUrlModal = false">
+        <div class="dash-pro-modal">
+          <button class="dash-pro-close" @click="showImageUrlModal = false">&times;</button>
+          <div class="dash-pro-icon">📸</div>
+          <h3 class="dash-pro-title">Post to Instagram</h3>
+          <p class="dash-pro-desc">Instagram requires an image. Paste a public image URL below:</p>
+          <input v-model="imageUrlInput" type="url" placeholder="https://example.com/your-photo.jpg"
+            class="dash-img-url-input" @keyup.enter="postToInstagram" />
+          <p class="dash-img-url-hint">Tip: Use a photo from Unsplash, your website, or Google Drive (make it public first)</p>
+          <div class="dash-img-preview" v-if="imageUrlInput">
+            <img :src="imageUrlInput" alt="Preview" @error="$event.target.style.display='none'" />
+          </div>
+          <button @click="postToInstagram" class="dash-pro-unlock" :disabled="!imageUrlInput">
+            📤 Post Now
+          </button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Pro Gate Modal -->
     <Transition name="dropdown">
       <div v-if="showProGate" class="dash-pro-overlay" @click.self="showProGate = false">
@@ -1158,6 +1342,7 @@ function exportCSV() {
             <li>Fine-tune tone, humor & formality</li>
             <li>Add brand keywords & words to avoid</li>
             <li>Paste a sample caption to match your style</li>
+            <li>📤 Post directly to Instagram</li>
             <li>Multi-account support (coming soon)</li>
           </ul>
           <button @click="unlockPro" class="dash-pro-unlock">Unlock Pro — Free During Beta</button>
@@ -1836,6 +2021,46 @@ function exportCSV() {
 .dash-copy-btn.outline { background: var(--bg-card); color: var(--text); border: 1.5px solid var(--border); }
 .dash-copy-btn.outline:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
 .dash-copy-btn.outline.copied { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* Action buttons row */
+.dash-action-btns { display: flex; gap: 8px; }
+.dash-action-btns .dash-copy-btn { flex: 1; }
+
+/* Post to Instagram button */
+.dash-post-btn {
+  flex: 1; padding: 14px; border-radius: 12px; border: 2px solid #E1306C;
+  background: #fff; color: #E1306C; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease;
+}
+.dash-post-btn:hover { background: #E1306C; color: #fff; }
+.dash-post-btn.posting { background: #FFF7ED; border-color: #D97706; color: #D97706; cursor: wait; }
+.dash-post-btn.posted { background: var(--green); border-color: var(--green); color: #fff; }
+.dash-post-error { font-size: 12px; color: #EF4444; margin-top: 6px; text-align: center; }
+
+/* Instagram connect in profile dropdown */
+.dash-ig-connect { padding: 12px 0; border-top: 1px solid var(--border); margin-top: 8px; }
+.dash-ig-connected { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dash-ig-avatar { width: 24px; height: 24px; border-radius: 50%; }
+.dash-ig-user { color: var(--text); font-weight: 500; flex: 1; }
+.dash-ig-disconnect { font-size: 11px; color: var(--text-tertiary); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.dash-ig-disconnect:hover { border-color: #EF4444; color: #EF4444; }
+.dash-ig-connect-btn {
+  width: 100%; padding: 10px; border-radius: 10px; border: 1.5px solid #E1306C;
+  background: #FFF0F5; color: #E1306C; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease;
+}
+.dash-ig-connect-btn:hover { background: #E1306C; color: #fff; }
+
+/* Image URL input modal */
+.dash-img-url-input {
+  width: 100%; padding: 12px 16px; border-radius: 10px; border: 1.5px solid var(--border);
+  font-size: 14px; margin: 12px 0 8px; box-sizing: border-box; background: var(--bg);
+  color: var(--text);
+}
+.dash-img-url-input:focus { border-color: #E1306C; outline: none; }
+.dash-img-url-hint { font-size: 12px; color: var(--text-tertiary); margin: 0 0 12px; }
+.dash-img-preview { border-radius: 10px; overflow: hidden; margin-bottom: 16px; max-height: 200px; }
+.dash-img-preview img { width: 100%; height: auto; max-height: 200px; object-fit: cover; }
 
 .dash-hint { text-align: center; padding: 32px 0; font-size: 14px; color: var(--text-tertiary); }
 
