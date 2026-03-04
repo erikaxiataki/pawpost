@@ -39,13 +39,23 @@
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker: clear old caches first, then register -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('🐾 PawPost SW registered'))
-            .catch(err => console.log('SW registration failed:', err))
+        // Force clear any stale caches immediately
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) { caches.delete(name) })
+          })
+        }
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(reg) { reg.unregister() })
+          }).then(function() {
+            navigator.serviceWorker.register('/sw.js')
+              .then(function(reg) { console.log('🐾 PawPost SW registered') })
+              .catch(function(err) { console.log('SW failed:', err) })
+          })
         })
       }
     </script>
