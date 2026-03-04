@@ -1,58 +1,23 @@
-const CACHE_NAME = 'pawpost-v1'
-const STATIC_ASSETS = [
-  '/',
-  '/manifest.json',
-  '/logo.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-]
+const CACHE_NAME = 'pawpost-v2'
 
-// Install — cache core assets
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS)
-    })
-  )
+// Install — just activate immediately
+self.addEventListener('install', () => {
   self.skipWaiting()
 })
 
 // Activate — clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      )
-    })
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => caches.delete(key)))
+    )
   )
   self.clients.claim()
 })
 
-// Fetch — network first, fallback to cache
-self.addEventListener('fetch', (event) => {
-  // Skip API calls and non-GET requests
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
-    return
-  }
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache successful responses
-        if (response.ok) {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone)
-          })
-        }
-        return response
-      })
-      .catch(() => {
-        // Offline fallback
-        return caches.match(event.request).then((cached) => {
-          return cached || caches.match('/')
-        })
-      })
-  )
+// Fetch — pass everything through to network (no caching)
+// This SW exists only to enable PWA install prompt
+self.addEventListener('fetch', () => {
+  // Let the browser handle all requests normally
+  return
 })
