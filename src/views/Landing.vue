@@ -971,8 +971,8 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .pp-logo-img {
-  height: 60px;
-  width: 60px;
+  height: 100px;
+  width: 100px;
   object-fit: contain;
   border-radius: 6px;
   transition: transform 0.3s;
@@ -983,7 +983,7 @@ onUnmounted(() => {
 .pp-logo-text {
   font-family: 'Fraunces', Georgia, serif;
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   color: #1C1917;
 }
 .pp-logo-ai { color: #D97706; }
