@@ -49,6 +49,11 @@ const translations = {
     pillSitters: 'Sitters',
     pillDaycares: 'Daycares',
     pillVets: 'Vet Clinics',
+    pillSuppliers: 'Suppliers',
+    pillFoodBrands: 'Food Brands',
+    pillWholesale: 'Importers',
+    pillInsurance: 'Pet Insurance',
+    pillEducation: 'Pet Courses',
 
     /* Hero card */
     heroCardBiz: 'Pawfect Grooming',
@@ -58,7 +63,7 @@ const translations = {
     heroCardPhoto: '📸 Photo idea included',
 
     /* Marquee */
-    marquee: 'GROOMERS · WALKERS · TRAINERS · SITTERS · DAYCARES · VET CLINICS · PET PHOTOGRAPHERS · PET STORES ·',
+    marquee: 'GROOMERS · WALKERS · TRAINERS · SITTERS · DAYCARES · VET CLINICS · PET PHOTOGRAPHERS · PET STORES · SUPPLIERS · FOOD BRANDS · IMPORTERS · PET INSURANCE · PET COURSES ·',
 
     /* Calculator */
     calcH2: "You're burning",
@@ -182,7 +187,7 @@ const translations = {
     nlTrust: 'Join',
     nlTrustCount: '2,400+',
     nlTrustEnd: 'pet business owners · Unsubscribe anytime',
-    nlSuccess: "You're in! Check your inbox this Monday. 🐾",
+    nlSuccess: "You're in! We'll keep you posted with fresh caption ideas. 🐾",
 
     /* Final CTA */
     finalPre: 'Bottom line',
@@ -226,6 +231,11 @@ const translations = {
     pillSitters: 'Pet Sitters',
     pillDaycares: 'Creches',
     pillVets: 'Clínicas Vet',
+    pillSuppliers: 'Distribuidores',
+    pillFoodBrands: 'Marcas de Ração',
+    pillWholesale: 'Importadores',
+    pillInsurance: 'Seguro Pet',
+    pillEducation: 'Cursos Pet',
 
     /* Hero card */
     heroCardBiz: 'Pawfect Grooming',
@@ -235,7 +245,7 @@ const translations = {
     heroCardPhoto: '📸 Ideia de foto incluída',
 
     /* Marquee */
-    marquee: 'BANHO & TOSA · DOG WALKERS · ADESTRADORES · PET SITTERS · CRECHES · CLÍNICAS VET · PET FOTÓGRAFOS · PET SHOPS ·',
+    marquee: 'BANHO & TOSA · DOG WALKERS · ADESTRADORES · PET SITTERS · CRECHES · CLÍNICAS VET · PET FOTÓGRAFOS · PET SHOPS · DISTRIBUIDORES · MARCAS DE RAÇÃO · IMPORTADORES · SEGURO PET · CURSOS PET ·',
 
     /* Calculator */
     calcH2: 'Você está queimando',
@@ -359,7 +369,7 @@ const translations = {
     nlTrust: 'Junte-se a',
     nlTrustCount: '2.400+',
     nlTrustEnd: 'donos de pet businesses · Cancele a qualquer momento',
-    nlSuccess: 'Você está dentro! Confira seu email nesta segunda. 🐾',
+    nlSuccess: 'Você está dentro! Vamos te enviar ideias fresquinhas de legendas. 🐾',
 
     /* Final CTA */
     finalPre: 'Resumindo',

@@ -28,6 +28,11 @@ const businessTypes = [
   { id: 'photographer', label: 'Pet Photographer', emoji: '📸' },
   { id: 'store', label: 'Pet Store / Shop', emoji: '🛍️' },
   { id: 'bakery', label: 'Dog Bakery', emoji: '🧁' },
+  { id: 'supplier', label: 'Pet Supplier / Distributor', emoji: '🏭' },
+  { id: 'food_brand', label: 'Pet Food Brand', emoji: '🍖' },
+  { id: 'wholesale', label: 'Importer / Wholesale', emoji: '📦' },
+  { id: 'insurance', label: 'Pet Insurance', emoji: '🛡️' },
+  { id: 'education', label: 'Pet Education / Courses', emoji: '🎓' },
   { id: 'other', label: 'Other', emoji: '🐾' },
 ]
 

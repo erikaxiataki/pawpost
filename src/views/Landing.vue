@@ -409,6 +409,11 @@ onUnmounted(() => {
               { emoji: '🏠', label: t('pillSitters') },
               { emoji: '🐕', label: t('pillDaycares') },
               { emoji: '🩺', label: t('pillVets') },
+              { emoji: '🏭', label: t('pillSuppliers') },
+              { emoji: '🍖', label: t('pillFoodBrands') },
+              { emoji: '📦', label: t('pillWholesale') },
+              { emoji: '🛡️', label: t('pillInsurance') },
+              { emoji: '🎓', label: t('pillEducation') },
             ]"
             :key="pi"
             class="pp-pill"
