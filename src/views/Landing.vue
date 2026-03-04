@@ -353,11 +353,9 @@ onUnmounted(() => {
           <img src="/logo.png" alt="PawPost AI" class="pp-logo-img" />
           <span class="pp-logo-text">PawPost <span class="pp-logo-ai">AI</span></span>
         </div>
-        <div class="pp-nav-right">
-          <div class="pp-lang-toggle">
-            <button :class="['pp-lang-btn', locale === 'en' && 'active']" @click="setLocale('en')" title="English">🇨🇦</button>
-            <button :class="['pp-lang-btn', locale === 'pt' && 'active']" @click="setLocale('pt')" title="Português">🇧🇷</button>
-          </div>
+        <div class="pp-lang-toggle">
+          <button :class="['pp-lang-btn', locale === 'en' && 'active']" @click="setLocale('en')" title="English">🇨🇦</button>
+          <button :class="['pp-lang-btn', locale === 'pt' && 'active']" @click="setLocale('pt')" title="Português">🇧🇷</button>
         </div>
       </div>
     </nav>
@@ -971,8 +969,8 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .pp-logo-img {
-  height: 160px;
-  width: 160px;
+  height: 200px;
+  width: 200px;
   object-fit: contain;
   border-radius: 6px;
   transition: transform 0.3s;
@@ -983,7 +981,7 @@ onUnmounted(() => {
 .pp-logo-text {
   font-family: 'Fraunces', Georgia, serif;
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   color: #1C1917;
 }
 .pp-logo-ai { color: #D97706; }
