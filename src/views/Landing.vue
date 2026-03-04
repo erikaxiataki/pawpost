@@ -672,7 +672,7 @@ onUnmounted(() => {
       <p class="pp-section-sub pp-center">{{ t('proofSub') }}</p>
       <div class="pp-proof-grid">
         <div
-          v-for="(t, ti) in [
+          v-for="(review, ti) in [
             { emoji: '✂️', name: 'Sarah T.', role: 'Dog Groomer · Austin, TX', quote: 'I copy-paste these straight into Instagram. They literally sound like me — my clients even asked if I hired a social media person.', stat: '3x', statLabel: 'more engagement', detail: 'Went from posting 2x/month to daily. Gained 1,200 followers in 3 months.' },
             { emoji: '🎾', name: 'Mike R.', role: 'Dog Trainer · Seattle, WA', quote: 'I was spending 2 hours every Sunday dreading caption writing. Now I open PawPost, copy Monday through Friday, and I\'m done in 10 minutes.', stat: '8hrs', statLabel: 'saved per month', detail: 'Uses PawPost for Instagram + Facebook. Books 4 extra clients per month from social.' },
             { emoji: '🏠', name: 'Danielle K.', role: 'Pet Sitter · Chicago, IL', quote: 'The photo ideas are a game-changer. I never knew what to shoot — now every caption tells me exactly what photo to pair. My engagement tripled.', stat: '47%', statLabel: 'more bookings', detail: 'Consistent posting built trust. Clients say they found her through Instagram.' },
@@ -684,25 +684,25 @@ onUnmounted(() => {
           <div class="pp-proof-flipper" :class="{ flipped: flippedCard === ti }">
             <div class="pp-proof-card pp-proof-front">
               <div class="pp-proof-stars">★★★★★</div>
-              <p class="pp-proof-quote">"{{ t.quote }}"</p>
+              <p class="pp-proof-quote">"{{ review.quote }}"</p>
               <div class="pp-proof-who">
-                <span class="pp-proof-avatar">{{ t.emoji }}</span>
+                <span class="pp-proof-avatar">{{ review.emoji }}</span>
                 <div>
-                  <strong>{{ t.name }}</strong>
-                  <span>{{ t.role }}</span>
+                  <strong>{{ review.name }}</strong>
+                  <span>{{ review.role }}</span>
                 </div>
               </div>
               <div class="pp-proof-tap">{{ t('proofTapResults') }}</div>
             </div>
             <div class="pp-proof-card pp-proof-back">
-              <div class="pp-proof-stat">{{ t.stat }}</div>
-              <div class="pp-proof-stat-label">{{ t.statLabel }}</div>
-              <p class="pp-proof-detail">{{ t.detail }}</p>
+              <div class="pp-proof-stat">{{ review.stat }}</div>
+              <div class="pp-proof-stat-label">{{ review.statLabel }}</div>
+              <p class="pp-proof-detail">{{ review.detail }}</p>
               <div class="pp-proof-who">
-                <span class="pp-proof-avatar">{{ t.emoji }}</span>
+                <span class="pp-proof-avatar">{{ review.emoji }}</span>
                 <div>
-                  <strong>{{ t.name }}</strong>
-                  <span>{{ t.role }}</span>
+                  <strong>{{ review.name }}</strong>
+                  <span>{{ review.role }}</span>
                 </div>
               </div>
               <div class="pp-proof-tap">{{ t('proofTapReview') }}</div>
