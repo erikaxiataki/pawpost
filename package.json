@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "resend": "^6.9.3",
     "stripe": "^20.4.0",
     "vue": "^3.5.25",
