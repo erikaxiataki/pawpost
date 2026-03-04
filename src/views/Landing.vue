@@ -734,16 +734,16 @@ onUnmounted(() => {
     <!-- ======== FINAL CTA ======== -->
     <section class="pp-final" data-reveal="final" :class="{ visible: isVisible('final') }">
       <div class="pp-final-inner">
-        <p class="pp-final-pre">One more thing... 🐾</p>
+        <p class="pp-final-pre">Bottom line</p>
         <h2 class="pp-final-h2">
           You started this business to<br>work with animals —<br>
-          <em>not to be a social media manager.</em>
+          <em>not to write Instagram captions.</em>
         </h2>
-        <p class="pp-final-sub">Let PawPost AI handle the captions. You handle the belly rubs. 🐶💛</p>
+        <p class="pp-final-sub">Get 30 days of content in 60 seconds. Free.</p>
         <button class="pp-btn-primary pp-btn-lg pp-btn-bounce" @click="goToOnboarding">
-          🐾 Generate My Free Caption Pack
+          Generate My Free Caption Pack →
         </button>
-        <p class="pp-final-note">No credit card. No catch. 30 captions in 5 minutes.</p>
+        <p class="pp-final-note">No credit card. No catch. Takes 60 seconds.</p>
       </div>
     </section>
 
@@ -831,7 +831,7 @@ onUnmounted(() => {
           <span class="pp-logo-paw">🐾</span>
           <span class="pp-logo-text">PawPost <span class="pp-logo-ai">AI</span></span>
         </div>
-        <p>Social media captions made for pet businesses — not marketing teams. 💛</p>
+        <p>Social media captions made for pet businesses — not marketing teams.</p>
       </div>
     </footer>
   </div>

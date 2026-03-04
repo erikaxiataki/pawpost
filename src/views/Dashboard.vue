@@ -23,6 +23,91 @@ const detailPlatformTab = ref(null)
 const postedDays = ref({})
 const showContentMix = ref(false)
 
+/* ---- Brand Voice (Pro Feature) ---- */
+const brandVoice = ref({
+  tone: 'warm',
+  humor: 50,
+  formality: 30,
+  emojiLevel: 'moderate',
+  customNotes: '',
+  keywords: [],
+  avoidWords: [],
+  sampleCaption: '',
+})
+const newKeyword = ref('')
+const newAvoidWord = ref('')
+const brandVoiceSaved = ref(false)
+const showProGate = ref(false)
+const isProUser = ref(false) // Future: real auth check
+
+const toneOptions = [
+  { id: 'warm', label: 'Warm & Friendly', icon: '💛', desc: 'Approachable, like a friend' },
+  { id: 'funny', label: 'Funny & Bold', icon: '😎', desc: 'Humor, memes, personality' },
+  { id: 'professional', label: 'Professional', icon: '💼', desc: 'Polished, trustworthy' },
+  { id: 'educational', label: 'Educational', icon: '📚', desc: 'Tips, value, expertise' },
+  { id: 'edgy', label: 'Edgy & Direct', icon: '🔥', desc: 'No fluff, straight talk' },
+]
+
+const emojiOptions = [
+  { id: 'none', label: 'None' },
+  { id: 'minimal', label: 'Minimal' },
+  { id: 'moderate', label: 'Moderate' },
+  { id: 'lots', label: 'Lots' },
+]
+
+function addKeyword() {
+  const w = newKeyword.value.trim()
+  if (w && !brandVoice.value.keywords.includes(w) && brandVoice.value.keywords.length < 10) {
+    brandVoice.value.keywords.push(w)
+    newKeyword.value = ''
+  }
+}
+function removeKeyword(word) {
+  brandVoice.value.keywords = brandVoice.value.keywords.filter(k => k !== word)
+}
+function addAvoidWord() {
+  const w = newAvoidWord.value.trim()
+  if (w && !brandVoice.value.avoidWords.includes(w) && brandVoice.value.avoidWords.length < 10) {
+    brandVoice.value.avoidWords.push(w)
+    newAvoidWord.value = ''
+  }
+}
+function removeAvoidWord(word) {
+  brandVoice.value.avoidWords = brandVoice.value.avoidWords.filter(k => k !== word)
+}
+function saveBrandVoice() {
+  localStorage.setItem('pawpost_brand_voice', JSON.stringify(brandVoice.value))
+  brandVoiceSaved.value = true
+  setTimeout(() => { brandVoiceSaved.value = false }, 2000)
+}
+function resetBrandVoice() {
+  brandVoice.value = {
+    tone: profile.value?.vibe || 'warm',
+    humor: 50,
+    formality: 30,
+    emojiLevel: 'moderate',
+    customNotes: '',
+    keywords: [],
+    avoidWords: [],
+    sampleCaption: '',
+  }
+  localStorage.removeItem('pawpost_brand_voice')
+}
+function openBrandVoiceTab() {
+  if (!isProUser.value) {
+    showProGate.value = true
+    return
+  }
+  activeTab.value = 'voice'
+}
+function unlockPro() {
+  // Future: real payment flow
+  isProUser.value = true
+  localStorage.setItem('pawpost_pro', 'true')
+  showProGate.value = false
+  activeTab.value = 'voice'
+}
+
 const currentMonth = ref(new Date().getMonth())
 const currentYear = ref(new Date().getFullYear())
 const currentWeekStart = ref(getWeekStart(new Date()))
@@ -51,6 +136,13 @@ onMounted(() => {
   // Load caption edits
   const savedEdits = localStorage.getItem('pawpost_edits')
   if (savedEdits) captionEdits.value = JSON.parse(savedEdits)
+  // Load brand voice
+  const savedVoice = localStorage.getItem('pawpost_brand_voice')
+  if (savedVoice) brandVoice.value = JSON.parse(savedVoice)
+  // Load pro status
+  isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
+  // Set initial tone from onboarding vibe
+  if (!savedVoice && profile.value?.vibe) brandVoice.value.tone = profile.value.vibe
 })
 
 function toggleDark() {
@@ -392,6 +484,10 @@ function exportCSV() {
           <div class="dash-tab-group">
             <button @click="activeTab = 'calendar'" :class="['dash-tab', activeTab === 'calendar' && 'active']">📅 Calendar</button>
             <button @click="activeTab = 'captions'" :class="['dash-tab', activeTab === 'captions' && 'active']">✍️ Captions</button>
+            <button @click="openBrandVoiceTab" :class="['dash-tab', activeTab === 'voice' && 'active']">
+              🎨 Voice
+              <span v-if="!isProUser" class="dash-pro-badge">PRO</span>
+            </button>
           </div>
           <button @click="toggleDark" class="dash-dark-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
             {{ darkMode ? '☀️' : '🌙' }}
@@ -447,7 +543,7 @@ function exportCSV() {
     <main class="dash-main">
 
       <!-- Welcome strip -->
-      <div class="dash-welcome">
+      <div v-if="activeTab !== 'voice'" class="dash-welcome">
         <div class="dash-welcome-inner">
           <div>
             <h1 class="dash-welcome-title">{{ profile.businessName ? `${profile.businessName}` : 'Your Dashboard' }}</h1>
@@ -480,7 +576,7 @@ function exportCSV() {
       </div>
 
       <!-- Content Mix -->
-      <div class="dash-content-mix">
+      <div v-if="activeTab !== 'voice'" class="dash-content-mix">
         <button class="dash-mix-toggle" @click="showContentMix = !showContentMix">
           <span>🎨 Content Mix</span>
           <span class="dash-mix-arrow" :style="{ transform: showContentMix ? 'rotate(180deg)' : '' }">▾</span>
@@ -495,7 +591,7 @@ function exportCSV() {
       </div>
 
       <!-- Upcoming pet holidays banner -->
-      <div v-if="upcomingHolidays.length" class="dash-holidays">
+      <div v-if="upcomingHolidays.length && activeTab !== 'voice'" class="dash-holidays">
         <div class="dash-holidays-inner">
           <span class="dash-holidays-label">📅 Upcoming</span>
           <div class="dash-holidays-list">
@@ -507,7 +603,7 @@ function exportCSV() {
       </div>
 
       <!-- Platform pills + export -->
-      <div class="dash-platforms">
+      <div v-if="activeTab !== 'voice'" class="dash-platforms">
         <div class="dash-platforms-inner">
           <div class="dash-platforms-left">
             <button v-for="pid in (profile.platforms || ['instagram'])" :key="pid" @click="activePlatform = pid"
@@ -908,7 +1004,167 @@ function exportCSV() {
           </div>
         </div>
       </div>
+
+      <!-- ===== BRAND VOICE SETTINGS (Pro) ===== -->
+      <div v-if="activeTab === 'voice'" class="dash-voice-wrap">
+        <div class="dash-voice-header">
+          <div>
+            <h2 class="dash-voice-title">Brand Voice Settings</h2>
+            <p class="dash-voice-subtitle">Fine-tune how your captions sound. Every caption generated will match this voice.</p>
+          </div>
+          <div class="dash-voice-actions">
+            <button @click="resetBrandVoice" class="dash-voice-reset">Reset</button>
+            <button @click="saveBrandVoice" :class="['dash-voice-save', brandVoiceSaved && 'saved']">
+              {{ brandVoiceSaved ? '✓ Saved' : 'Save Voice' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Tone selector -->
+        <div class="dash-voice-section">
+          <h3 class="dash-voice-label">Tone</h3>
+          <div class="dash-voice-tone-grid">
+            <button
+              v-for="t in toneOptions" :key="t.id"
+              @click="brandVoice.tone = t.id"
+              :class="['dash-voice-tone-card', brandVoice.tone === t.id && 'active']"
+            >
+              <span class="dash-voice-tone-icon">{{ t.icon }}</span>
+              <span class="dash-voice-tone-label">{{ t.label }}</span>
+              <span class="dash-voice-tone-desc">{{ t.desc }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sliders -->
+        <div class="dash-voice-section">
+          <div class="dash-voice-slider-row">
+            <div class="dash-voice-slider-group">
+              <div class="dash-voice-slider-header">
+                <h3 class="dash-voice-label">Humor Level</h3>
+                <span class="dash-voice-slider-value">{{ brandVoice.humor }}%</span>
+              </div>
+              <div class="dash-voice-slider-labels">
+                <span>Serious</span><span>Playful</span>
+              </div>
+              <input type="range" v-model.number="brandVoice.humor" min="0" max="100" class="dash-voice-range" />
+            </div>
+            <div class="dash-voice-slider-group">
+              <div class="dash-voice-slider-header">
+                <h3 class="dash-voice-label">Formality</h3>
+                <span class="dash-voice-slider-value">{{ brandVoice.formality }}%</span>
+              </div>
+              <div class="dash-voice-slider-labels">
+                <span>Casual</span><span>Formal</span>
+              </div>
+              <input type="range" v-model.number="brandVoice.formality" min="0" max="100" class="dash-voice-range" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Emoji level -->
+        <div class="dash-voice-section">
+          <h3 class="dash-voice-label">Emoji Usage</h3>
+          <div class="dash-voice-emoji-row">
+            <button
+              v-for="e in emojiOptions" :key="e.id"
+              @click="brandVoice.emojiLevel = e.id"
+              :class="['dash-voice-emoji-btn', brandVoice.emojiLevel === e.id && 'active']"
+            >{{ e.label }}</button>
+          </div>
+        </div>
+
+        <!-- Keywords -->
+        <div class="dash-voice-section">
+          <div class="dash-voice-two-col">
+            <div>
+              <h3 class="dash-voice-label">Brand Keywords</h3>
+              <p class="dash-voice-hint">Words you want in your captions (max 10)</p>
+              <div class="dash-voice-chip-input">
+                <div class="dash-voice-chips">
+                  <span v-for="kw in brandVoice.keywords" :key="kw" class="dash-voice-chip">
+                    {{ kw }}
+                    <button @click="removeKeyword(kw)" class="dash-voice-chip-x">&times;</button>
+                  </span>
+                </div>
+                <form @submit.prevent="addKeyword" class="dash-voice-add-row">
+                  <input v-model="newKeyword" placeholder="e.g. pawsome, tail-wagging" class="dash-voice-input" />
+                  <button type="submit" class="dash-voice-add-btn">Add</button>
+                </form>
+              </div>
+            </div>
+            <div>
+              <h3 class="dash-voice-label">Words to Avoid</h3>
+              <p class="dash-voice-hint">Words you never want in captions (max 10)</p>
+              <div class="dash-voice-chip-input">
+                <div class="dash-voice-chips">
+                  <span v-for="aw in brandVoice.avoidWords" :key="aw" class="dash-voice-chip avoid">
+                    {{ aw }}
+                    <button @click="removeAvoidWord(aw)" class="dash-voice-chip-x">&times;</button>
+                  </span>
+                </div>
+                <form @submit.prevent="addAvoidWord" class="dash-voice-add-row">
+                  <input v-model="newAvoidWord" placeholder="e.g. fur-baby, doggo" class="dash-voice-input" />
+                  <button type="submit" class="dash-voice-add-btn">Add</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom voice notes -->
+        <div class="dash-voice-section">
+          <h3 class="dash-voice-label">Voice Notes</h3>
+          <p class="dash-voice-hint">Describe your brand's personality in your own words</p>
+          <textarea
+            v-model="brandVoice.customNotes"
+            class="dash-voice-textarea"
+            placeholder="e.g. We're a small-town grooming salon that treats every dog like family. We're warm but never cheesy. We use humor but stay professional..."
+            rows="4"
+          ></textarea>
+        </div>
+
+        <!-- Sample caption preview -->
+        <div class="dash-voice-section">
+          <h3 class="dash-voice-label">Sample Caption (optional)</h3>
+          <p class="dash-voice-hint">Paste a caption you love — we'll match this style</p>
+          <textarea
+            v-model="brandVoice.sampleCaption"
+            class="dash-voice-textarea"
+            placeholder="Paste a real caption from your feed that nails your voice..."
+            rows="3"
+          ></textarea>
+        </div>
+
+        <!-- Save bar (mobile sticky) -->
+        <div class="dash-voice-save-bar">
+          <button @click="saveBrandVoice" :class="['dash-voice-save lg', brandVoiceSaved && 'saved']">
+            {{ brandVoiceSaved ? '✓ Voice Saved' : 'Save Brand Voice' }}
+          </button>
+        </div>
+      </div>
+
     </main>
+
+    <!-- Pro Gate Modal -->
+    <Transition name="dropdown">
+      <div v-if="showProGate" class="dash-pro-overlay" @click.self="showProGate = false">
+        <div class="dash-pro-modal">
+          <button class="dash-pro-close" @click="showProGate = false">&times;</button>
+          <div class="dash-pro-icon">🔒</div>
+          <h3 class="dash-pro-title">Brand Voice is a Pro feature</h3>
+          <p class="dash-pro-desc">Customize your tone, humor, keywords, and how every caption sounds — so your content always feels like <em>you</em>.</p>
+          <ul class="dash-pro-features">
+            <li>Fine-tune tone, humor & formality</li>
+            <li>Add brand keywords & words to avoid</li>
+            <li>Paste a sample caption to match your style</li>
+            <li>Multi-account support (coming soon)</li>
+          </ul>
+          <button @click="unlockPro" class="dash-pro-unlock">Unlock Pro — Free During Beta</button>
+          <p class="dash-pro-note">No credit card required. Free while we're in beta.</p>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Footer -->
     <footer class="dash-footer">
@@ -1612,8 +1868,178 @@ function exportCSV() {
 /* ===== FOOTER ===== */
 .dash-footer { text-align: center; padding: 32px 20px; font-size: 12px; color: var(--text-tertiary); letter-spacing: 0.02em; }
 
+/* ===== PRO BADGE ===== */
+.dash-pro-badge {
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444); color: white;
+  margin-left: 4px; letter-spacing: 0.05em; vertical-align: super;
+}
+
+/* ===== BRAND VOICE SETTINGS ===== */
+.dash-voice-wrap { max-width: 720px; margin: 0 auto; padding: 28px 28px 100px; }
+.dash-voice-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; gap: 16px; }
+.dash-voice-title { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 4px; }
+.dash-voice-subtitle { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.5; }
+.dash-voice-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.dash-voice-reset {
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+}
+.dash-voice-reset:hover { border-color: var(--text-tertiary); }
+.dash-voice-save {
+  padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  background: var(--text); color: var(--bg); border: none;
+  cursor: pointer; transition: all 0.2s;
+}
+.dash-voice-save:hover { opacity: 0.9; }
+.dash-voice-save.saved { background: #16a34a; color: white; }
+.dash-voice-save.lg { width: 100%; padding: 14px; font-size: 15px; border-radius: 12px; }
+.dash-voice-section { margin-bottom: 28px; }
+.dash-voice-label { font-size: 14px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.01em; }
+.dash-voice-hint { font-size: 12px; color: var(--text-tertiary); margin: -6px 0 10px; }
+
+/* Tone cards */
+.dash-voice-tone-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.dash-voice-tone-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 14px; border-radius: 12px; border: 1.5px solid var(--border);
+  background: var(--bg-card); cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.dash-voice-tone-card:hover { border-color: var(--text-tertiary); }
+.dash-voice-tone-card.active { border-color: #f59e0b; background: #fffbeb; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+.dash-root.dark .dash-voice-tone-card.active { background: rgba(245,158,11,0.1); border-color: #f59e0b; }
+.dash-voice-tone-icon { font-size: 20px; }
+.dash-voice-tone-label { font-size: 13px; font-weight: 700; }
+.dash-voice-tone-desc { font-size: 11px; color: var(--text-tertiary); line-height: 1.3; }
+
+/* Sliders */
+.dash-voice-slider-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.dash-voice-slider-group { display: flex; flex-direction: column; }
+.dash-voice-slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.dash-voice-slider-value { font-size: 13px; font-weight: 600; color: #f59e0b; }
+.dash-voice-slider-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px; }
+.dash-voice-range {
+  -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px;
+  background: var(--border); outline: none; cursor: pointer;
+}
+.dash-voice-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: #f59e0b; border: 3px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+.dash-voice-range::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #f59e0b; border: 3px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+
+/* Emoji options */
+.dash-voice-emoji-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.dash-voice-emoji-btn {
+  padding: 8px 18px; border-radius: 100px; font-size: 13px; font-weight: 600;
+  background: var(--bg-card); color: var(--text-secondary); border: 1.5px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+}
+.dash-voice-emoji-btn:hover { border-color: var(--text-tertiary); }
+.dash-voice-emoji-btn.active { background: #fffbeb; color: #92400e; border-color: #f59e0b; }
+.dash-root.dark .dash-voice-emoji-btn.active { background: rgba(245,158,11,0.1); color: #fbbf24; }
+
+/* Keywords / avoid words */
+.dash-voice-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.dash-voice-chip-input {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+}
+.dash-voice-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 24px; }
+.dash-voice-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+  padding: 4px 10px; border-radius: 100px; background: #fffbeb; color: #92400e; border: 1px solid #fde68a;
+}
+.dash-voice-chip.avoid { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.dash-root.dark .dash-voice-chip { background: rgba(245,158,11,0.1); color: #fbbf24; border-color: rgba(245,158,11,0.25); }
+.dash-root.dark .dash-voice-chip.avoid { background: rgba(239,68,68,0.1); color: #fca5a5; border-color: rgba(239,68,68,0.25); }
+.dash-voice-chip-x {
+  background: none; border: none; font-size: 14px; cursor: pointer; color: inherit;
+  opacity: 0.5; padding: 0 0 0 2px; line-height: 1;
+}
+.dash-voice-chip-x:hover { opacity: 1; }
+.dash-voice-add-row { display: flex; gap: 6px; }
+.dash-voice-input {
+  flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+  font-size: 13px; background: var(--bg); color: var(--text);
+  outline: none; transition: border-color 0.15s;
+}
+.dash-voice-input:focus { border-color: #f59e0b; }
+.dash-voice-add-btn {
+  padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: var(--text); color: var(--bg); border: none; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.dash-voice-add-btn:hover { opacity: 0.85; }
+
+/* Textarea */
+.dash-voice-textarea {
+  width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+  font-size: 14px; background: var(--bg-card); color: var(--text); resize: vertical;
+  font-family: inherit; line-height: 1.6; outline: none; transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.dash-voice-textarea:focus { border-color: #f59e0b; }
+.dash-voice-textarea::placeholder { color: var(--text-tertiary); }
+
+/* Save bar (mobile sticky) */
+.dash-voice-save-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 20px;
+  background: var(--bg); border-top: 1px solid var(--border);
+  display: none; z-index: 50;
+}
+
+/* ===== PRO GATE MODAL ===== */
+.dash-pro-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.dash-pro-modal {
+  background: var(--bg-card); border-radius: 20px; padding: 36px; max-width: 420px;
+  width: 100%; position: relative; text-align: center;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.15);
+}
+.dash-pro-close {
+  position: absolute; top: 16px; right: 16px; background: none; border: none;
+  font-size: 22px; color: var(--text-tertiary); cursor: pointer; line-height: 1;
+}
+.dash-pro-close:hover { color: var(--text); }
+.dash-pro-icon { font-size: 40px; margin-bottom: 12px; }
+.dash-pro-title { font-size: 20px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.02em; }
+.dash-pro-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 20px; }
+.dash-pro-desc em { font-style: italic; color: var(--text); }
+.dash-pro-features {
+  text-align: left; margin: 0 0 24px; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.dash-pro-features li {
+  font-size: 14px; font-weight: 500; padding-left: 24px; position: relative;
+  color: var(--text);
+}
+.dash-pro-features li::before {
+  content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 700;
+}
+.dash-pro-unlock {
+  width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700;
+  background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; border: none;
+  cursor: pointer; transition: all 0.2s; letter-spacing: -0.01em;
+}
+.dash-pro-unlock:hover { opacity: 0.9; transform: translateY(-1px); }
+.dash-pro-note { font-size: 12px; color: var(--text-tertiary); margin: 10px 0 0; }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
+  .dash-voice-header { flex-direction: column; }
+  .dash-voice-slider-row { grid-template-columns: 1fr; }
+  .dash-voice-two-col { grid-template-columns: 1fr; }
+  .dash-voice-save-bar { display: block; }
+  .dash-voice-actions .dash-voice-save { display: none; }
   .dash-nav-inner { padding: 0 16px; }
   .dash-tab { font-size: 12px; padding: 5px 10px; }
   .dash-welcome-inner { padding: 20px 0; }
