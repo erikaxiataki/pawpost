@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { captionTemplates, platformFormats, weeklyThemes, imageSuggestions, trendingSounds, petHolidays, generateVariants, getCategoryPhoto, getCTA, getSEOKeywords, bestPostingTimes } from '../data/captions.js'
+import { captionTemplates, platformFormats, weeklyThemes, imageSuggestions, trendingSounds, petHolidays, generateVariants, getCategoryPhoto, getCTA, getSEOKeywords, bestPostingTimes, getFormatRecommendation } from '../data/captions.js'
 
 function getPhoto(caption, fallbackIndex) {
   return caption?.photo || getCategoryPhoto(caption?.category, fallbackIndex || 0)
@@ -33,7 +33,10 @@ const brandVoice = ref({
   keywords: [],
   avoidWords: [],
   sampleCaption: '',
+  brandColors: ['#FF6B35', '#2EC4B6', '#FFFFFF'],
+  brandName: '',
 })
+const abMode = ref(false)
 const newKeyword = ref('')
 const newAvoidWord = ref('')
 const brandVoiceSaved = ref(false)
@@ -104,6 +107,8 @@ function resetBrandVoice() {
     keywords: [],
     avoidWords: [],
     sampleCaption: '',
+    brandColors: ['#FF6B35', '#2EC4B6', '#FFFFFF'],
+    brandName: '',
   }
   localStorage.removeItem('pawpost_brand_voice')
 }
@@ -927,13 +932,40 @@ function exportCSV() {
                     <span class="dash-detail-badge">{{ selectedDay.caption?.category }}</span>
                   </div>
 
-                  <!-- Variant tabs -->
-                  <div v-if="currentVariants.length > 1" class="dash-variant-tabs">
-                    <button v-for="(v, vi) in currentVariants" :key="vi"
-                      @click="activeVariant = vi; editingCaption = null"
-                      :class="['dash-variant-btn', activeVariant === vi && 'active']">
-                      {{ v.variantLabel }}
+                  <!-- Format Recommendation -->
+                  <div class="dash-format-rec" v-if="selectedDay.caption?.category">
+                    <span class="dash-format-icon">{{ getFormatRecommendation(selectedDay.caption.category).icon }}</span>
+                    <span class="dash-format-label">Best as <strong>{{ getFormatRecommendation(selectedDay.caption.category).format }}</strong></span>
+                    <span class="dash-format-reason">{{ getFormatRecommendation(selectedDay.caption.category).reason }}</span>
+                  </div>
+
+                  <!-- Variant tabs + A/B toggle -->
+                  <div v-if="currentVariants.length > 1" class="dash-variant-header">
+                    <div class="dash-variant-tabs">
+                      <button v-for="(v, vi) in currentVariants" :key="vi"
+                        @click="activeVariant = vi; editingCaption = null"
+                        :class="['dash-variant-btn', !abMode && activeVariant === vi && 'active']"
+                        v-show="!abMode">
+                        {{ v.variantLabel }}
+                      </button>
+                    </div>
+                    <button @click="abMode = !abMode" :class="['dash-ab-toggle', abMode && 'active']">
+                      {{ abMode ? '← Single view' : 'A/B Compare' }}
                     </button>
+                  </div>
+
+                  <!-- A/B Side-by-Side Preview -->
+                  <div v-if="abMode && currentVariants.length > 1" class="dash-ab-grid">
+                    <div v-for="(v, vi) in currentVariants.slice(0, 2)" :key="vi"
+                      :class="['dash-ab-card', activeVariant === vi && 'selected']"
+                      @click="activeVariant = vi">
+                      <div class="dash-ab-label">{{ vi === 0 ? 'A' : 'B' }}</div>
+                      <div class="dash-ab-variant-name">{{ v.variantLabel }}</div>
+                      <p class="dash-ab-text">{{ formatForPlatform(v, detailPlatform) }}</p>
+                      <button @click.stop="activeVariant = vi" :class="['dash-ab-pick', activeVariant === vi && 'picked']">
+                        {{ activeVariant === vi ? '✓ Selected' : 'Use this one' }}
+                      </button>
+                    </div>
                   </div>
 
                   <!-- Editable caption -->
@@ -1146,6 +1178,7 @@ function exportCSV() {
           <div v-for="(caption, idx) in captions" :key="idx" class="dash-caption-card">
             <div class="dash-caption-meta">
               <span class="dash-caption-category">{{ caption.category }}</span>
+              <span class="dash-caption-format-badge">{{ getFormatRecommendation(caption.category).icon }} {{ getFormatRecommendation(caption.category).format }}</span>
               <span class="dash-caption-platform">{{ platformFormats[activePlatform]?.emoji }} {{ platformFormats[activePlatform]?.label }}</span>
             </div>
 
@@ -1277,6 +1310,20 @@ function exportCSV() {
                 </form>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Brand Colors -->
+        <div class="dash-voice-section">
+          <h3 class="dash-voice-label">Brand Colors</h3>
+          <p class="dash-voice-hint">Your brand's main colors — used in post previews and exports</p>
+          <div class="dash-brand-colors">
+            <div v-for="(color, ci) in brandVoice.brandColors" :key="ci" class="dash-brand-color-item">
+              <input type="color" :value="color" @input="brandVoice.brandColors[ci] = $event.target.value" class="dash-color-picker" />
+              <span class="dash-color-hex">{{ color }}</span>
+              <button v-if="brandVoice.brandColors.length > 1" @click="brandVoice.brandColors.splice(ci, 1)" class="dash-color-remove">&times;</button>
+            </div>
+            <button v-if="brandVoice.brandColors.length < 5" @click="brandVoice.brandColors.push('#000000')" class="dash-color-add">+ Add color</button>
           </div>
         </div>
 
@@ -2089,6 +2136,8 @@ function exportCSV() {
 .dash-caption-card:hover { box-shadow: var(--shadow-md); }
 .dash-caption-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .dash-caption-category { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 100px; background: var(--amber-light); color: var(--amber-dark); text-transform: uppercase; letter-spacing: 0.04em; }
+.dash-caption-format-badge { font-size: 11px; padding: 4px 10px; border-radius: 100px; background: #f0f8ff; color: #2980b9; font-weight: 500; }
+.dark .dash-caption-format-badge { background: #1a2530; color: #5dade2; }
 .dash-caption-platform { font-size: 12px; color: var(--text-tertiary); }
 .dash-caption-text { font-size: 15px; line-height: 1.6; color: var(--text); margin-bottom: 12px; white-space: pre-line; }
 .dash-caption-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
@@ -2319,5 +2368,172 @@ function exportCSV() {
   .dash-export-btn { padding: 6px 12px; font-size: 12px; }
   .dash-holidays { padding: 6px 16px; }
   .dash-holiday-chip { font-size: 11px; padding: 3px 10px; }
+  .dash-ab-grid { grid-template-columns: 1fr; }
+  .dash-format-rec { flex-direction: column; align-items: flex-start; }
 }
+
+/* ===== FORMAT RECOMMENDATION ===== */
+.dash-format-rec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #fff8f0, #f0f8ff);
+  border: 1px solid #ffe0c0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 8px 0 12px;
+}
+.dark .dash-format-rec { background: linear-gradient(135deg, #2a2520, #1e2530); border-color: #4a3a2a; }
+.dash-format-icon { font-size: 20px; }
+.dash-format-label { font-size: 13px; color: #333; }
+.dark .dash-format-label { color: #ddd; }
+.dash-format-label strong { color: #e8590c; }
+.dash-format-reason { font-size: 11px; color: #888; margin-left: auto; }
+
+/* ===== A/B COMPARE ===== */
+.dash-variant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dash-ab-toggle {
+  background: none;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #666;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.dash-ab-toggle:hover { border-color: #e8590c; color: #e8590c; }
+.dash-ab-toggle.active { background: #e8590c; color: white; border-color: #e8590c; }
+.dark .dash-ab-toggle { border-color: #444; color: #aaa; }
+
+.dash-ab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dash-ab-card {
+  border: 2px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.dash-ab-card:hover { border-color: #e8590c; }
+.dash-ab-card.selected { border-color: #e8590c; background: #fff8f5; }
+.dark .dash-ab-card { border-color: #333; }
+.dark .dash-ab-card.selected { border-color: #e8590c; background: #2a1f18; }
+
+.dash-ab-label {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: #e8590c;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 6px;
+}
+.dash-ab-card:nth-child(2) .dash-ab-label { background: #2ec4b6; }
+
+.dash-ab-variant-name {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.dash-ab-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #333;
+  margin: 0 0 12px;
+  max-height: 120px;
+  overflow: hidden;
+}
+.dark .dash-ab-text { color: #ddd; }
+
+.dash-ab-pick {
+  width: 100%;
+  padding: 8px;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dash-ab-pick:hover { border-color: #e8590c; color: #e8590c; }
+.dash-ab-pick.picked { background: #e8590c; color: white; border-color: #e8590c; }
+.dark .dash-ab-pick { background: #1a1a1a; border-color: #444; color: #ddd; }
+.dark .dash-ab-pick.picked { background: #e8590c; color: white; }
+
+/* ===== BRAND COLORS ===== */
+.dash-brand-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.dash-brand-color-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8f8f8;
+  border-radius: 10px;
+  padding: 6px 12px 6px 6px;
+}
+.dark .dash-brand-color-item { background: #222; }
+
+.dash-color-picker {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+.dash-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.dash-color-picker::-webkit-color-swatch { border: 2px solid #e8e8e8; border-radius: 8px; }
+
+.dash-color-hex {
+  font-size: 12px;
+  font-family: monospace;
+  color: #666;
+}
+.dark .dash-color-hex { color: #aaa; }
+
+.dash-color-remove {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.dash-color-remove:hover { color: #e74c3c; }
+
+.dash-color-add {
+  background: none;
+  border: 2px dashed #ddd;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #999;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dash-color-add:hover { border-color: #e8590c; color: #e8590c; }
+.dark .dash-color-add { border-color: #444; color: #666; }
 </style>

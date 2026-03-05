@@ -419,6 +419,25 @@ export function generateVariants(caption, vibe = 'warm', businessName = '') {
   return variants
 }
 
+// Recommended post format per category
+export const formatRecommendations = {
+  transformation: { format: 'Carousel', icon: '📸', reason: 'Before & after slides get 3x more saves' },
+  fun: { format: 'Reel', icon: '🎬', reason: 'Fun content goes viral as short video' },
+  educational: { format: 'Carousel', icon: '📸', reason: 'Tips in slides get saved and shared more' },
+  promo: { format: 'Story + Post', icon: '📱', reason: 'Post for reach, Story for urgency' },
+  testimonial: { format: 'Single Post', icon: '🖼️', reason: 'Clean photo + quote feels authentic' },
+  trust: { format: 'Carousel', icon: '📸', reason: 'Build credibility across multiple slides' },
+  milestone: { format: 'Reel', icon: '🎬', reason: 'Celebration moments shine in video' },
+  brand: { format: 'Single Post', icon: '🖼️', reason: 'Strong visual + voice = brand identity' },
+  lifestyle: { format: 'Reel', icon: '🎬', reason: 'Lifestyle vibes perform best as video' },
+  emotional: { format: 'Single Post', icon: '🖼️', reason: 'Emotional photos stop the scroll' },
+  engagement: { format: 'Story', icon: '📱', reason: 'Polls and questions thrive in Stories' },
+}
+
+export function getFormatRecommendation(category) {
+  return formatRecommendations[category] || { format: 'Single Post', icon: '🖼️', reason: 'Classic post format works great' }
+}
+
 // Best times to post by day of week (based on general social media best practices)
 export const bestPostingTimes = {
   0: { time: '10:00 AM', note: 'Sunday mornings — people browse while relaxing' },
