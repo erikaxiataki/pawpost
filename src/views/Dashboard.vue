@@ -127,6 +127,96 @@ function unlockPro() {
   activeTab.value = 'voice'
 }
 
+/* ---- Profile Analyzer ---- */
+const analyzerInput = ref('')
+const analyzerLoading = ref(false)
+const analyzerResult = ref(null)
+
+function analyzeProfile() {
+  const text = analyzerInput.value.trim()
+  if (!text || text.length < 20) return
+  analyzerLoading.value = true
+  analyzerResult.value = null
+
+  setTimeout(() => {
+    const words = text.toLowerCase().split(/\s+/)
+    const totalWords = words.length
+    const emojiCount = (text.match(/[\u{1F300}-\u{1FFFF}]/gu) || []).length
+    const exclamations = (text.match(/!/g) || []).length
+    const questions = (text.match(/\?/g) || []).length
+    const avgSentenceLen = text.split(/[.!?]+/).filter(s => s.trim()).length
+    const hashtagCount = (text.match(/#\w+/g) || []).length
+
+    // Detect tone
+    const funWords = ['lol','haha','funny','love','amazing','wow','omg','yay','cute','adorable','pawsome','woof']
+    const proWords = ['professional','quality','expert','certified','trusted','experience','premium','excellence']
+    const eduWords = ['tip','learn','know','important','remember','always','never','should','guide','how']
+    const funScore = words.filter(w => funWords.includes(w)).length
+    const proScore = words.filter(w => proWords.includes(w)).length
+    const eduScore = words.filter(w => eduWords.includes(w)).length
+
+    let detectedTone = 'warm'
+    if (funScore > proScore && funScore > eduScore) detectedTone = 'funny'
+    else if (proScore > funScore && proScore > eduScore) detectedTone = 'professional'
+    else if (eduScore > funScore && eduScore > proScore) detectedTone = 'educational'
+    else if (exclamations > 3) detectedTone = 'funny'
+
+    // Detect emoji level
+    let detectedEmoji = 'moderate'
+    const emojiRatio = emojiCount / Math.max(totalWords, 1)
+    if (emojiCount === 0) detectedEmoji = 'none'
+    else if (emojiRatio < 0.02) detectedEmoji = 'minimal'
+    else if (emojiRatio > 0.08) detectedEmoji = 'lots'
+
+    // Detect humor/formality
+    const humor = Math.min(100, Math.round((funScore * 15) + (exclamations * 5) + (emojiCount * 3)))
+    const formality = Math.min(100, Math.round((proScore * 20) + (avgSentenceLen > 3 ? 20 : 0)))
+
+    // Extract common words as keywords
+    const stopWords = new Set(['the','a','an','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','may','might','shall','can','need','dare','to','of','in','for','on','with','at','by','from','as','into','through','during','before','after','above','below','between','out','off','over','under','again','further','then','once','here','there','when','where','why','how','all','both','each','few','more','most','other','some','such','no','nor','not','only','own','same','so','than','too','very','just','and','but','or','if','while','that','this','it','its','your','our','we','you','they','them','their','my','me','i','he','she','him','her','his','what','which','who','whom'])
+    const wordFreq = {}
+    words.forEach(w => {
+      const clean = w.replace(/[^a-z]/g, '')
+      if (clean.length > 3 && !stopWords.has(clean)) {
+        wordFreq[clean] = (wordFreq[clean] || 0) + 1
+      }
+    })
+    const topKeywords = Object.entries(wordFreq).sort((a,b) => b[1] - a[1]).slice(0, 5).map(e => e[0])
+
+    // Extract hashtags
+    const hashtags = [...new Set((text.match(/#\w+/g) || []))].slice(0, 8)
+
+    analyzerResult.value = {
+      tone: detectedTone,
+      emoji: detectedEmoji,
+      humor: humor,
+      formality: formality,
+      keywords: topKeywords,
+      hashtags: hashtags,
+      stats: {
+        words: totalWords,
+        emojis: emojiCount,
+        hashtags: hashtagCount,
+        sentences: avgSentenceLen,
+      }
+    }
+    analyzerLoading.value = false
+  }, 1500)
+}
+
+function applyAnalysis() {
+  if (!analyzerResult.value) return
+  const r = analyzerResult.value
+  brandVoice.value.tone = r.tone
+  brandVoice.value.emojiLevel = r.emoji
+  brandVoice.value.humor = r.humor
+  brandVoice.value.formality = r.formality
+  if (r.keywords.length) brandVoice.value.keywords = r.keywords
+  saveBrandVoice()
+  analyzerResult.value = null
+  analyzerInput.value = ''
+}
+
 const currentMonth = ref(new Date().getMonth())
 const currentYear = ref(new Date().getFullYear())
 const currentWeekStart = ref(getWeekStart(new Date()))
@@ -1219,6 +1309,70 @@ function exportCSV() {
               {{ brandVoiceSaved ? '✓ Saved' : 'Save Voice' }}
             </button>
           </div>
+        </div>
+
+        <!-- Profile Analyzer -->
+        <div class="dash-analyzer">
+          <div class="dash-analyzer-header">
+            <span class="dash-analyzer-icon">🔍</span>
+            <div>
+              <h3 class="dash-analyzer-title">Voice Analyzer</h3>
+              <p class="dash-analyzer-desc">Paste 2-3 captions from your feed and we'll detect your style automatically</p>
+            </div>
+          </div>
+          <textarea
+            v-model="analyzerInput"
+            class="dash-analyzer-textarea"
+            placeholder="Paste your captions here... (the more you paste, the better we learn your voice)"
+            rows="4"
+          ></textarea>
+          <div class="dash-analyzer-actions">
+            <span class="dash-analyzer-hint" v-if="analyzerInput.length > 0 && analyzerInput.length < 20">Need at least 20 characters</span>
+            <button @click="analyzeProfile" :class="['dash-analyzer-btn', analyzerLoading && 'loading']" :disabled="analyzerInput.length < 20 || analyzerLoading">
+              {{ analyzerLoading ? '🔍 Sniffing your style...' : '🐾 Analyze My Voice' }}
+            </button>
+          </div>
+
+          <!-- Analyzer Results -->
+          <Transition name="dropdown">
+            <div v-if="analyzerResult" class="dash-analyzer-results">
+              <h4 class="dash-analyzer-results-title">🎯 Here's what we found</h4>
+              <div class="dash-analyzer-grid">
+                <div class="dash-analyzer-stat">
+                  <span class="dash-analyzer-stat-label">Tone</span>
+                  <span class="dash-analyzer-stat-value">{{ {warm:'💛 Warm',funny:'😎 Funny',professional:'💼 Professional',educational:'📚 Educational',edgy:'🔥 Edgy'}[analyzerResult.tone] || '💛 Warm' }}</span>
+                </div>
+                <div class="dash-analyzer-stat">
+                  <span class="dash-analyzer-stat-label">Emoji Usage</span>
+                  <span class="dash-analyzer-stat-value">{{ analyzerResult.emoji }}</span>
+                </div>
+                <div class="dash-analyzer-stat">
+                  <span class="dash-analyzer-stat-label">Humor</span>
+                  <span class="dash-analyzer-stat-value">{{ analyzerResult.humor }}%</span>
+                </div>
+                <div class="dash-analyzer-stat">
+                  <span class="dash-analyzer-stat-label">Formality</span>
+                  <span class="dash-analyzer-stat-value">{{ analyzerResult.formality }}%</span>
+                </div>
+              </div>
+              <div v-if="analyzerResult.keywords.length" class="dash-analyzer-keywords">
+                <span class="dash-analyzer-stat-label">Your top words</span>
+                <div class="dash-analyzer-chips">
+                  <span v-for="kw in analyzerResult.keywords" :key="kw" class="dash-analyzer-chip">{{ kw }}</span>
+                </div>
+              </div>
+              <div v-if="analyzerResult.hashtags.length" class="dash-analyzer-keywords">
+                <span class="dash-analyzer-stat-label">Your hashtags</span>
+                <div class="dash-analyzer-chips">
+                  <span v-for="tag in analyzerResult.hashtags" :key="tag" class="dash-analyzer-chip tag">{{ tag }}</span>
+                </div>
+              </div>
+              <div class="dash-analyzer-apply-row">
+                <button @click="applyAnalysis" class="dash-analyzer-apply">🐾 Apply to my Brand Voice</button>
+                <button @click="analyzerResult = null" class="dash-analyzer-dismiss">Dismiss</button>
+              </div>
+            </div>
+          </Transition>
         </div>
 
         <!-- Tone selector -->
@@ -2536,4 +2690,134 @@ function exportCSV() {
 }
 .dash-color-add:hover { border-color: #e8590c; color: #e8590c; }
 .dark .dash-color-add { border-color: #444; color: #666; }
+
+/* ===== PROFILE ANALYZER ===== */
+.dash-analyzer {
+  background: linear-gradient(135deg, #fff8f0, #f5f0ff);
+  border: 1.5px solid #ffe0c0;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.dark .dash-analyzer { background: linear-gradient(135deg, #2a2520, #25202a); border-color: #4a3a2a; }
+
+.dash-analyzer-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.dash-analyzer-icon { font-size: 28px; }
+.dash-analyzer-title { font-size: 16px; font-weight: 700; color: #222; margin: 0; }
+.dark .dash-analyzer-title { color: #eee; }
+.dash-analyzer-desc { font-size: 13px; color: #888; margin: 2px 0 0; }
+
+.dash-analyzer-textarea {
+  width: 100%;
+  border: 1.5px solid #e0d5c8;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  background: white;
+  box-sizing: border-box;
+}
+.dark .dash-analyzer-textarea { background: #1a1a1a; border-color: #444; color: #ddd; }
+.dash-analyzer-textarea:focus { outline: none; border-color: #e8590c; }
+
+.dash-analyzer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+.dash-analyzer-hint { font-size: 12px; color: #cc7700; }
+
+.dash-analyzer-btn {
+  background: #222;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dash-analyzer-btn:hover { background: #e8590c; }
+.dash-analyzer-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dash-analyzer-btn.loading { background: #e8590c; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+.dash-analyzer-results {
+  margin-top: 16px;
+  background: white;
+  border-radius: 12px;
+  padding: 18px;
+  border: 1.5px solid #e8e8e8;
+}
+.dark .dash-analyzer-results { background: #1a1a1a; border-color: #333; }
+
+.dash-analyzer-results-title { font-size: 15px; font-weight: 700; margin: 0 0 14px; color: #222; }
+.dark .dash-analyzer-results-title { color: #eee; }
+
+.dash-analyzer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.dash-analyzer-stat {
+  background: #f8f8f8;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dark .dash-analyzer-stat { background: #222; }
+.dash-analyzer-stat-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.dash-analyzer-stat-value { font-size: 14px; font-weight: 600; color: #333; text-transform: capitalize; }
+.dark .dash-analyzer-stat-value { color: #ddd; }
+
+.dash-analyzer-keywords { margin-bottom: 12px; }
+.dash-analyzer-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.dash-analyzer-chip {
+  background: #fff3e0;
+  color: #e8590c;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.dash-analyzer-chip.tag { background: #e8f5e9; color: #2e7d32; }
+.dark .dash-analyzer-chip { background: #3a2a1a; }
+.dark .dash-analyzer-chip.tag { background: #1a3a1a; }
+
+.dash-analyzer-apply-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.dash-analyzer-apply {
+  flex: 1;
+  background: #e8590c;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dash-analyzer-apply:hover { background: #d04a00; }
+.dash-analyzer-dismiss {
+  background: none;
+  border: 1.5px solid #ddd;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #888;
+  cursor: pointer;
+}
+.dash-analyzer-dismiss:hover { border-color: #999; }
+.dark .dash-analyzer-dismiss { border-color: #444; color: #666; }
 </style>
