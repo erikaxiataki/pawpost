@@ -401,7 +401,7 @@ const captionCharCount = computed(() => {
 // Caption variants for selected day
 const currentVariants = computed(() => {
   if (!selectedDay.value?.caption) return []
-  return generateVariants(selectedDay.value.caption, profile.value?.vibe, profile.value?.businessName)
+  return generateVariants(selectedDay.value.caption, profile.value?.vibe, profile.value?.businessName, brandVoice.value)
 })
 
 // Pet holidays — upcoming ones

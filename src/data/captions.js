@@ -385,10 +385,16 @@ export const petHolidays = [
 ]
 
 // Generate caption variants from a base caption
-export function generateVariants(caption, vibe = 'warm', businessName = '') {
+export function generateVariants(caption, vibe = 'warm', businessName = '', brandVoice = null) {
   if (!caption) return [caption]
-  const base = caption.text
-  const variants = [{ ...caption, variantLabel: 'Original' }]
+  let base = caption.text
+
+  // Apply brand voice to the base text
+  if (brandVoice) {
+    base = applyBrandVoice(base, brandVoice)
+  }
+
+  const variants = [{ ...caption, text: base, variantLabel: 'Original' }]
 
   // Variant 2: Shorter/punchier
   const sentences = base.split(/(?<=[.!?])\s+/)
@@ -417,6 +423,58 @@ export function generateVariants(caption, vibe = 'warm', businessName = '') {
   variants.push({ ...caption, text: hookText, variantLabel: 'Question Hook' })
 
   return variants
+}
+
+// Apply brand voice settings to caption text
+function applyBrandVoice(text, voice) {
+  let result = text
+
+  // Remove avoid words
+  if (voice.avoidWords?.length) {
+    voice.avoidWords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi')
+      result = result.replace(regex, '').replace(/\s{2,}/g, ' ').trim()
+    })
+  }
+
+  // Adjust emoji level
+  if (voice.emojiLevel === 'none') {
+    result = result.replace(/[\u{1F300}-\u{1FFFF}]/gu, '').replace(/\s{2,}/g, ' ').trim()
+  } else if (voice.emojiLevel === 'lots') {
+    const petEmojis = ['🐾', '🐶', '💛', '✨', '🔥', '❤️', '🐕', '🎉']
+    const sentences = result.split(/(?<=[.!?])\s+/)
+    if (sentences.length > 1) {
+      result = sentences.map((s, i) => {
+        if (i > 0 && i % 2 === 0 && !s.match(/[\u{1F300}-\u{1FFFF}]/u)) {
+          return s + ' ' + petEmojis[i % petEmojis.length]
+        }
+        return s
+      }).join(' ')
+    }
+  }
+
+  // Adjust tone — add personality touches
+  if (voice.tone === 'funny' && voice.humor > 60) {
+    if (!result.includes('😂') && !result.includes('😅')) {
+      result = result.replace(/\.$/, '! 😄')
+    }
+  } else if (voice.tone === 'professional' && voice.formality > 60) {
+    result = result.replace(/!{2,}/g, '.').replace(/!!!/g, '.')
+  }
+
+  // Inject brand keywords naturally at the end if not already present
+  if (voice.keywords?.length) {
+    const lowerResult = result.toLowerCase()
+    const missing = voice.keywords.filter(kw => !lowerResult.includes(kw.toLowerCase()))
+    if (missing.length > 0 && missing.length <= 2) {
+      // Only add if 1-2 keywords missing — keeps it natural
+      const keywordPhrase = missing.join(' & ')
+      if (!result.endsWith('.') && !result.endsWith('!') && !result.endsWith('?')) result += '.'
+      result += ` #${missing[0].replace(/\s+/g, '')}`
+    }
+  }
+
+  return result.trim()
 }
 
 // Recommended post format per category
