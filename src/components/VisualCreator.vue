@@ -216,6 +216,7 @@ const props = defineProps({
   profile: { type: Object, default: null },
   brandVoice: { type: Object, default: null },
   isPro: { type: Boolean, default: false },
+  isPremium: { type: Boolean, default: false },
   overrideText: { type: String, default: '' },
 })
 
@@ -297,7 +298,7 @@ function incrementImageUsage() {
   imageUsageCount.value = usage.count
 }
 
-const userTier = computed(() => props.isPro ? 'pro' : 'free')
+const userTier = computed(() => props.isPro ? 'pro' : props.isPremium ? 'premium' : 'free')
 const imageLimit = computed(() => IMAGE_LIMITS[userTier.value])
 const imageUsageCount = ref(getImageUsage().count)
 const imagesRemaining = computed(() => Math.max(0, imageLimit.value - imageUsageCount.value))

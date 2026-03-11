@@ -50,6 +50,7 @@ const brandVoiceSaved = ref(false)
 const showProGate = ref(false)
 const proGateFeature = ref('Brand Voice')
 const isProUser = ref(false) // Future: real auth check
+const isPremiumUser = ref(false) // Future: real auth check
 
 /* ---- Instagram Direct Posting (Pro Feature) ---- */
 const metaConnected = ref(false)
@@ -274,6 +275,7 @@ onMounted(() => {
   }
   // Load pro status
   isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
+  isPremiumUser.value = localStorage.getItem('pawpost_premium') === 'true'
   // Set initial tone from onboarding vibe
   if (!savedVoice && profile.value?.vibe) {
     const v = profile.value.vibe
@@ -1420,6 +1422,7 @@ function exportCSV() {
                     :profile="profile"
                     :brand-voice="brandVoice"
                     :is-pro="isProUser"
+                    :is-premium="isPremiumUser"
                     :override-text="hookOverrideText"
                     @upgrade="proGateFeature = 'AI Images'; showProGate = true"
                   />

@@ -40,10 +40,11 @@ export default async function handler(req, res) {
             image: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`,
           })
         }
+        console.error('Gemini returned no image data, falling back to OpenAI')
+      } else {
+        const errText = await response.text()
+        console.error('Gemini failed, falling back to OpenAI:', response.status, errText)
       }
-
-      const errText = await response.text()
-      console.error('Gemini failed, falling back to OpenAI:', response.status, errText)
     } catch (err) {
       console.error('Gemini error, falling back to OpenAI:', err.message)
     }
