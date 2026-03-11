@@ -266,8 +266,8 @@ const hashtags = computed(() => props.caption?.hashtags || '')
 const photoUrl = ref('')
 const mediaSource = ref('suggested')
 
-// AI Image generation
-const aiPrompt = ref('')
+// AI Image generation — auto-fill from caption's image idea
+const aiPrompt = ref(props.caption?.imageIdea || '')
 const aiImageUrl = ref('')
 const aiGenerating = ref(false)
 const aiError = ref('')
@@ -333,6 +333,7 @@ async function generateAiImage() {
     const res = await fetch('/api/generate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ prompt: aiPrompt.value.trim() })
     })
     const text = await res.text()
@@ -341,7 +342,12 @@ async function generateAiImage() {
     if (!res.ok) throw new Error(data.error || 'Generation failed')
     if (!data.image) throw new Error('No image was returned. Try a different prompt.')
     aiImageUrl.value = data.image
-    incrementImageUsage()
+    // Sync usage from server if available, otherwise use local tracking
+    if (data.usage !== undefined) {
+      imageUsageCount.value = data.usage
+    } else {
+      incrementImageUsage()
+    }
   } catch (e) {
     aiError.value = e.message || 'Failed to generate image'
   }
@@ -356,6 +362,8 @@ const photoHint = computed(() => props.caption?.imageIdea || 'Use a professional
 watch([() => props.caption, () => props.overrideText], ([c, override]) => {
   if (override) customText.value = override
   else if (c?.text) customText.value = c.text
+  // Auto-fill AI prompt from caption's image idea
+  if (c?.imageIdea && !aiImageUrl.value) aiPrompt.value = c.imageIdea
 }, { immediate: true })
 
 // Editable carousel steps

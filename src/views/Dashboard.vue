@@ -49,8 +49,10 @@ const newAvoidWord = ref('')
 const brandVoiceSaved = ref(false)
 const showProGate = ref(false)
 const proGateFeature = ref('Brand Voice')
-const isProUser = ref(false) // Future: real auth check
-const isPremiumUser = ref(false) // Future: real auth check
+const isProUser = ref(false)
+const isPremiumUser = ref(false)
+const authUser = ref(null) // Server-side user data
+const serverUsage = ref({ images: 0 }) // Server-side usage tracking
 
 /* ---- Instagram Direct Posting (Pro Feature) ---- */
 const metaConnected = ref(false)
@@ -251,7 +253,7 @@ const monthNamesShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','
 const dayNames = ['S','M','T','W','T','F','S']
 const dayNamesFull = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
-onMounted(() => {
+onMounted(async () => {
   const saved = localStorage.getItem('pawpost_profile')
   if (!saved) { router.push('/onboarding'); return }
   profile.value = JSON.parse(saved)
@@ -273,9 +275,25 @@ onMounted(() => {
     // Migrate tone from string to array if needed
     if (typeof brandVoice.value.tone === 'string') brandVoice.value.tone = [brandVoice.value.tone]
   }
-  // Load pro status
-  isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
-  isPremiumUser.value = localStorage.getItem('pawpost_premium') === 'true'
+  // Load pro status from server (with localStorage fallback)
+  try {
+    const authRes = await fetch('/api/auth/me', { credentials: 'include' })
+    if (authRes.ok) {
+      const data = await authRes.json()
+      authUser.value = data
+      isProUser.value = data.plan === 'premium_pro'
+      isPremiumUser.value = data.plan === 'premium'
+      serverUsage.value = data.usage || { images: 0 }
+      // Try refreshing Instagram token if connected
+      fetch('/api/meta-refresh', { method: 'POST', credentials: 'include' }).catch(() => {})
+    } else {
+      isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
+      isPremiumUser.value = localStorage.getItem('pawpost_premium') === 'true'
+    }
+  } catch {
+    isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
+    isPremiumUser.value = localStorage.getItem('pawpost_premium') === 'true'
+  }
   // Set initial tone from onboarding vibe
   if (!savedVoice && profile.value?.vibe) {
     const v = profile.value.vibe

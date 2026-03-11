@@ -1,31 +1,26 @@
 import { put } from '@vercel/blob'
+import { verifySession, setCorsHeaders } from './lib/auth.js'
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://pawpost.ca')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  setCorsHeaders(res)
   if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+  // Auth check — users can only save their own profile
+  const user = await verifySession(req)
+  if (!user) return res.status(401).json({ error: 'Not authenticated' })
 
   try {
-    const { email, profile } = req.body
-
-    if (!email || !email.includes('@')) {
-      return res.status(400).json({ error: 'Valid email required' })
-    }
+    const { profile } = req.body
 
     if (!profile || typeof profile !== 'object') {
       return res.status(400).json({ error: 'Profile data required' })
     }
 
-    // Store profile as JSON blob keyed by email (lowercase, trimmed)
-    const key = `profiles/${email.toLowerCase().trim()}.json`
+    const key = `profiles/${user.email}.json`
     const data = {
       ...profile,
-      email: email.toLowerCase().trim(),
+      email: user.email,
       updatedAt: new Date().toISOString(),
     }
 
@@ -35,7 +30,6 @@ export default async function handler(req, res) {
       contentType: 'application/json',
     })
 
-    console.log(`💾 Profile saved for ${email}`)
     return res.status(200).json({ success: true })
   } catch (err) {
     console.error('Save profile error:', err.message)
