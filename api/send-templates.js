@@ -1,10 +1,11 @@
 import { Resend } from 'resend'
+import { put } from '@vercel/blob'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export default async function handler(req, res) {
   // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Origin', 'https://pawpost.ca')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { email, source } = req.body
+    const { email, source, businessTypeId, language, vibe } = req.body
 
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: 'Valid email required' })
@@ -45,11 +46,37 @@ export default async function handler(req, res) {
 
     // Save contact to Resend for newsletter broadcasts
     try {
-      await resend.contacts.create({ email, unsubscribed: false })
+      const audienceId = process.env.RESEND_AUDIENCE_ID
+      const contactData = { email, unsubscribed: false }
+      if (audienceId) contactData.audienceId = audienceId
+      await resend.contacts.create(contactData)
       console.log(`📋 Contact saved: ${email}`)
     } catch (contactErr) {
       // Contact may already exist — that's fine
       console.log(`Contact save note: ${contactErr.message}`)
+    }
+
+    // Save profile to Vercel Blob for personalized newsletters + restore
+    if (businessTypeId || language || vibe) {
+      try {
+        const key = `profiles/${email.toLowerCase().trim()}.json`
+        const profileData = {
+          email: email.toLowerCase().trim(),
+          businessTypeId: businessTypeId || 'other',
+          language: language || 'en',
+          vibe: vibe || 'warm',
+          source,
+          subscribedAt: new Date().toISOString(),
+        }
+        await put(key, JSON.stringify(profileData), {
+          access: 'public',
+          addRandomSuffix: false,
+          contentType: 'application/json',
+        })
+        console.log(`💾 Profile saved for ${email}`)
+      } catch (profileErr) {
+        console.log(`Profile save note: ${profileErr.message}`)
+      }
     }
 
     console.log(`✅ Email sent to ${email} (source: ${source})`, data)

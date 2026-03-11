@@ -453,13 +453,25 @@ function applyBrandVoice(text, voice) {
     }
   }
 
-  // Adjust tone — add personality touches
-  if (voice.tone === 'funny' && voice.humor > 60) {
+  // Adjust tone — add personality touches (supports array or string)
+  const tones = Array.isArray(voice.tone) ? voice.tone : [voice.tone]
+  if (tones.includes('funny') && voice.humor > 60) {
     if (!result.includes('😂') && !result.includes('😅')) {
       result = result.replace(/\.$/, '! 😄')
     }
-  } else if (voice.tone === 'professional' && voice.formality > 60) {
+  }
+  if (tones.includes('professional') && voice.formality > 60) {
     result = result.replace(/!{2,}/g, '.').replace(/!!!/g, '.')
+  }
+  if (tones.includes('warm') && !tones.includes('professional')) {
+    // Warm touch — soften language
+    result = result.replace(/\bYou must\b/gi, 'You might want to')
+  }
+  if (tones.includes('educational')) {
+    // Educational touch — add "tip" framing if not present
+    if (!result.toLowerCase().includes('tip') && !result.toLowerCase().includes('did you know')) {
+      result = result.replace(/^/, '💡 ')
+    }
   }
 
   // Inject brand keywords naturally at the end if not already present
@@ -476,6 +488,102 @@ function applyBrandVoice(text, voice) {
 
   return result.trim()
 }
+
+// ---- Hook Frameworks ----
+const categoryOpeners = {
+  transformation: { pain: 'dull, matted fur', result: 'a show-stopping glow-up', myth: 'grooming is just cosmetic', fact: '80% of skin issues come from poor grooming', opportunity: 'making your pet look AND feel amazing' },
+  fun: { pain: 'boring pet content', result: 'viral-worthy moments', myth: 'pets don\'t have personality', fact: 'dogs can understand 250+ words', opportunity: 'the funniest pet content trend right now' },
+  educational: { pain: 'pet care confusion', result: 'confident pet parenting', myth: 'all pet food is the same', fact: 'dogs need different nutrients at every life stage', opportunity: 'knowledge that could save your pet\'s life' },
+  promo: { pain: 'finding reliable pet care', result: 'peace of mind', myth: 'cheap services are just as good', fact: 'quality care pays for itself in fewer vet bills', opportunity: 'our biggest offer of the season' },
+  testimonial: { pain: 'trusting a new pet service', result: 'a happy, healthy pet', myth: 'online reviews can\'t be trusted', fact: '93% of our clients come back', opportunity: 'hearing from real pet parents' },
+  trust: { pain: 'leaving your pet with strangers', result: 'a second family for your pet', myth: 'all pet care providers are the same', fact: 'certified professionals make a real difference', opportunity: 'building a bond with your pet\'s caretaker' },
+  engagement: { pain: 'feeling alone as a pet parent', result: 'a supportive community', myth: 'social media is just for likes', fact: 'pet communities are the most engaged online', opportunity: 'connecting with fellow pet lovers' },
+}
+const defaultOpener = { pain: 'struggling with pet care', result: 'happier, healthier pets', myth: 'pet care is simple', fact: 'most pet owners miss early warning signs', opportunity: 'better care for your furry friend' }
+
+function getOpener(category) {
+  return categoryOpeners[category] || defaultOpener
+}
+
+export const hookFrameworks = [
+  {
+    id: 'pattern-interrupt', name: 'Pattern Interrupt', icon: '⚡',
+    desc: 'Open with something unexpected',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `Stop scrolling. 🛑\n\n${o.fact}.\n\n${text}`
+    }
+  },
+  {
+    id: 'authority-builder', name: 'Authority Builder', icon: '🏆',
+    desc: 'Counter a common belief with data',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `Most people think ${o.myth}.\n\nBut here's what the data shows:\n\n${text}`
+    }
+  },
+  {
+    id: 'problem-agitate-solution', name: 'Problem → Solution', icon: '🎯',
+    desc: 'Name the pain, then solve it',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `Tired of ${o.pain}?\n\nIt gets worse when you ignore it.\n\nHere's the fix 👇\n\n${text}`
+    }
+  },
+  {
+    id: 'hidden-secret', name: 'Hidden Secret', icon: '🔮',
+    desc: 'Spark curiosity with a reveal',
+    transform: (text, biz, cat) => {
+      return `Nobody talks about this, but...\n\n${text}`
+    }
+  },
+  {
+    id: 'before-after', name: 'Before / After', icon: '🌅',
+    desc: 'Show the transformation',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `Before: ${o.pain} 😩\nAfter: ${o.result} ✨\n\nHere's how 👇\n\n${text}`
+    }
+  },
+  {
+    id: 'educational', name: 'Educational', icon: '🧠',
+    desc: 'Lead with a surprising fact',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `Did you know? 🤔\n\n${o.fact}.\n\n${text}`
+    }
+  },
+  {
+    id: 'social-proof', name: 'Social Proof', icon: '📊',
+    desc: 'Lead with results and credibility',
+    transform: (text, biz, cat) => {
+      return `500+ pet parents already know this.\n\nHere's what we did 👇\n\n${text}`
+    }
+  },
+  {
+    id: 'myth-buster', name: 'Myth Buster', icon: '💥',
+    desc: 'Debunk a common misconception',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `MYTH: "${o.myth}" ❌\n\nTRUTH: ${o.fact} ✅\n\n${text}`
+    }
+  },
+  {
+    id: 'quick-win', name: 'Quick Win', icon: '⏱️',
+    desc: 'Promise an immediate result',
+    transform: (text, biz, cat) => {
+      return `In just 30 seconds, you can improve your pet's day.\n\nHere's how (it's easier than you think) 👇\n\n${text}`
+    }
+  },
+  {
+    id: 'fomo', name: 'FOMO', icon: '🔥',
+    desc: 'Create urgency and curiosity',
+    transform: (text, biz, cat) => {
+      const o = getOpener(cat)
+      return `You're missing out on ${o.opportunity}. 👀\n\nHere's why it matters:\n\n${text}`
+    }
+  },
+]
 
 // Recommended post format per category
 export const formatRecommendations = {
@@ -494,6 +602,39 @@ export const formatRecommendations = {
 
 export function getFormatRecommendation(category) {
   return formatRecommendations[category] || { format: 'Single Post', icon: '🖼️', reason: 'Classic post format works great' }
+}
+
+// Category labels & colors for display
+export const categoryMeta = {
+  transformation: { label: 'Transformation', color: '#f59e0b', icon: '✨', tip: 'Show a dramatic before & after or glow-up' },
+  fun: { label: 'Fun & Personality', color: '#ec4899', icon: '😄', tip: 'Show your fun side — memes, humor, relatable moments' },
+  educational: { label: 'Educational', color: '#3b82f6', icon: '📚', tip: 'Share a tip, fact, or how-to your followers can save' },
+  promo: { label: 'Promo & CTA', color: '#f97316', icon: '📢', tip: 'Promote your services with a clear call to action' },
+  testimonial: { label: 'Testimonial', color: '#8b5cf6', icon: '⭐', tip: 'Share a client story or review that builds trust' },
+  trust: { label: 'Trust & Safety', color: '#14b8a6', icon: '🛡️', tip: 'Show behind-the-scenes care and professionalism' },
+  milestone: { label: 'Milestone', color: '#22c55e', icon: '🎉', tip: 'Celebrate an achievement or special moment' },
+  brand: { label: 'Brand Story', color: '#6366f1', icon: '💎', tip: 'Share your mission, values, or what makes you unique' },
+  lifestyle: { label: 'Lifestyle', color: '#06b6d4', icon: '🌿', tip: 'Show the everyday beauty of working with pets' },
+  emotional: { label: 'Emotional', color: '#e11d48', icon: '❤️', tip: 'Create a heartfelt moment that resonates' },
+  engagement: { label: 'Engagement', color: '#a855f7', icon: '💬', tip: 'Ask a question or start a conversation' },
+}
+
+// Weekly content rhythm — assigns balanced categories to posting days
+export function weeklyContentMix(postCount) {
+  const value = ['educational', 'transformation', 'trust']
+  const engage = ['fun', 'engagement', 'promo']
+  const brand = ['brand', 'lifestyle', 'emotional']
+
+  const mixes = {
+    1: [value[0]],
+    2: [value[0], engage[0]],
+    3: [value[0], engage[0], brand[0]],
+    4: [value[0], engage[0], brand[0], value[1]],
+    5: [value[0], engage[0], brand[0], value[1], engage[1]],
+    6: [value[0], engage[0], brand[0], value[1], engage[1], brand[1]],
+    7: [value[0], engage[0], brand[0], value[1], engage[1], brand[1], engage[2]],
+  }
+  return mixes[Math.min(postCount, 7)] || mixes[3]
 }
 
 // Best times to post by day of week (based on general social media best practices)

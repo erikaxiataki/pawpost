@@ -11,12 +11,82 @@ const customBusiness = ref('')
 const businessName = ref('')
 const location = ref('')
 const services = ref('')
-const vibe = ref('')
+const instagramHandle = ref('')
+const tiktokHandle = ref('')
+const facebookHandle = ref('')
+const website = ref('')
+const vibe = ref([])
 const audience = ref('')
 const platforms = ref([])
 const goal = ref('')
 const frequency = ref('3x')
+const postingDays = ref([1, 3, 5]) // Mon, Wed, Fri default
 const language = ref('en')
+
+const dayOptions = [
+  { id: 0, label: 'Sun', full: 'Sunday' },
+  { id: 1, label: 'Mon', full: 'Monday' },
+  { id: 2, label: 'Tue', full: 'Tuesday' },
+  { id: 3, label: 'Wed', full: 'Wednesday' },
+  { id: 4, label: 'Thu', full: 'Thursday' },
+  { id: 5, label: 'Fri', full: 'Friday' },
+  { id: 6, label: 'Sat', full: 'Saturday' },
+]
+
+const freqDayCount = computed(() => {
+  const map = { '1x': 1, '2x': 2, '3x': 3, '5x': 5, 'daily': 7 }
+  return map[frequency.value] || 3
+})
+
+function togglePostingDay(id) {
+  const idx = postingDays.value.indexOf(id)
+  if (idx > -1) { postingDays.value.splice(idx, 1) }
+  else if (postingDays.value.length < freqDayCount.value) { postingDays.value.push(id) }
+}
+
+// Persist onboarding progress so it survives browser close
+function saveProgress() {
+  localStorage.setItem('pawpost_onboarding', JSON.stringify({
+    step: step.value, businessType: businessType.value, customBusiness: customBusiness.value,
+    businessName: businessName.value, location: location.value, services: services.value,
+    instagramHandle: instagramHandle.value, tiktokHandle: tiktokHandle.value,
+    facebookHandle: facebookHandle.value, website: website.value,
+    vibe: vibe.value, audience: audience.value, platforms: platforms.value,
+    goal: goal.value, frequency: frequency.value, postingDays: postingDays.value, language: language.value,
+  }))
+}
+
+// Restore saved progress on mount
+;(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('pawpost_onboarding'))
+    if (!saved) return
+    step.value = saved.step || 1
+    businessType.value = saved.businessType || ''
+    customBusiness.value = saved.customBusiness || ''
+    businessName.value = saved.businessName || ''
+    location.value = saved.location || ''
+    services.value = saved.services || ''
+    instagramHandle.value = saved.instagramHandle || ''
+    tiktokHandle.value = saved.tiktokHandle || ''
+    facebookHandle.value = saved.facebookHandle || ''
+    website.value = saved.website || ''
+    vibe.value = saved.vibe || []
+    audience.value = saved.audience || ''
+    platforms.value = saved.platforms || []
+    goal.value = saved.goal || ''
+    frequency.value = saved.frequency || '3x'
+    postingDays.value = saved.postingDays || [1, 3, 5]
+    language.value = saved.language || 'en'
+  } catch {}
+})()
+
+// Auto-set defaults when frequency changes
+function setFrequency(f) {
+  frequency.value = f
+  const defaults = { '1x': [3], '2x': [2, 4], '3x': [1, 3, 5], '5x': [1, 2, 3, 4, 5], 'daily': [0, 1, 2, 3, 4, 5, 6] }
+  postingDays.value = defaults[f] || [1, 3, 5]
+}
 
 const businessTypes = [
   { id: 'groomer', label: 'Dog Groomer', emoji: '✂️' },
@@ -83,12 +153,18 @@ const languages = [
 
 const canProceed = computed(() => {
   if (step.value === 1) return businessType.value && (businessType.value !== 'other' || customBusiness.value)
-  if (step.value === 2) return vibe.value
+  if (step.value === 2) return vibe.value.length > 0
   if (step.value === 3) return platforms.value.length > 0
-  if (step.value === 4) return frequency.value
+  if (step.value === 4) return frequency.value && postingDays.value.length === freqDayCount.value
   if (step.value === 5) return true
   return false
 })
+
+function toggleVibe(id) {
+  const idx = vibe.value.indexOf(id)
+  if (idx > -1) vibe.value.splice(idx, 1)
+  else vibe.value.push(id)
+}
 
 function togglePlatform(id) {
   const idx = platforms.value.indexOf(id)
@@ -99,6 +175,7 @@ function togglePlatform(id) {
 function nextStep() {
   if (step.value < totalSteps) {
     step.value++
+    saveProgress()
   } else {
     finishOnboarding()
   }
@@ -116,9 +193,15 @@ function finishOnboarding() {
     platforms: platforms.value,
     goal: goal.value,
     frequency: frequency.value,
+    postingDays: postingDays.value,
     language: language.value,
+    instagramHandle: instagramHandle.value || '',
+    tiktokHandle: tiktokHandle.value || '',
+    facebookHandle: facebookHandle.value || '',
+    website: website.value || '',
   }
   localStorage.setItem('pawpost_profile', JSON.stringify(profile))
+  localStorage.removeItem('pawpost_onboarding') // Clear saved progress
   router.push('/dashboard')
 }
 </script>
@@ -182,6 +265,32 @@ function finishOnboarding() {
           <input v-model="services" type="text" placeholder="e.g. Full grooms, nail trims, puppy's first haircut, dematting"
             class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-amber-400 focus:outline-none bg-white text-gray-900 placeholder-gray-300 text-sm">
         </div>
+
+        <div class="mb-6">
+          <label class="text-sm font-semibold text-gray-700 mb-3 block">Social media & website <span class="text-gray-300 font-normal">(optional)</span></label>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-lg w-7 text-center">📷</span>
+              <input v-model="instagramHandle" type="text" placeholder="@yourbusiness"
+                class="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-amber-400 focus:outline-none bg-white text-gray-900 placeholder-gray-300 text-sm">
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-lg w-7 text-center">🎵</span>
+              <input v-model="tiktokHandle" type="text" placeholder="@yourbusiness"
+                class="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-amber-400 focus:outline-none bg-white text-gray-900 placeholder-gray-300 text-sm">
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-lg w-7 text-center">👤</span>
+              <input v-model="facebookHandle" type="text" placeholder="facebook.com/yourbusiness"
+                class="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-amber-400 focus:outline-none bg-white text-gray-900 placeholder-gray-300 text-sm">
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-lg w-7 text-center">🌐</span>
+              <input v-model="website" type="text" placeholder="yourwebsite.com"
+                class="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-amber-400 focus:outline-none bg-white text-gray-900 placeholder-gray-300 text-sm">
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Step 2: Brand Voice -->
@@ -193,10 +302,10 @@ function finishOnboarding() {
         </div>
 
         <div class="mb-8">
-          <label class="text-sm font-semibold text-gray-700 mb-3 block">How do you want to sound on social media?</label>
+          <label class="text-sm font-semibold text-gray-700 mb-3 block">How do you want to sound? <span class="text-gray-400 font-normal">(pick 1 or more)</span></label>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button v-for="v in vibes" :key="v.id" @click="vibe = v.id"
-              :class="['p-4 rounded-xl border-2 text-left transition-all cursor-pointer', vibe === v.id ? 'border-amber-400 bg-amber-50 shadow-md' : 'border-gray-200 bg-white hover:border-gray-300']">
+            <button v-for="v in vibes" :key="v.id" @click="toggleVibe(v.id)"
+              :class="['p-4 rounded-xl border-2 text-left transition-all cursor-pointer', vibe.includes(v.id) ? 'border-amber-400 bg-amber-50 shadow-md' : 'border-gray-200 bg-white hover:border-gray-300']">
               <div class="flex items-center gap-2 mb-1">
                 <span class="text-xl">{{ v.emoji }}</span>
                 <span class="font-semibold text-gray-900 text-sm">{{ v.label }}</span>
@@ -259,7 +368,7 @@ function finishOnboarding() {
         <div class="mb-8">
           <label class="text-sm font-semibold text-gray-700 mb-3 block">Posting frequency</label>
           <div class="grid grid-cols-1 gap-3">
-            <button v-for="f in frequencies" :key="f.id" @click="frequency = f.id"
+            <button v-for="f in frequencies" :key="f.id" @click="setFrequency(f.id)"
               :class="['p-4 rounded-xl border-2 text-left transition-all cursor-pointer', frequency === f.id ? 'border-amber-400 bg-amber-50 shadow-md' : 'border-gray-200 bg-white hover:border-gray-300']">
               <div class="flex items-center gap-3">
                 <span class="text-2xl">{{ f.emoji }}</span>
@@ -268,6 +377,21 @@ function finishOnboarding() {
                   <p class="text-gray-400 text-xs">{{ f.desc }}</p>
                 </div>
               </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Day picker (shown when frequency is not daily) -->
+        <div v-if="frequency && frequency !== 'daily'" class="mb-8">
+          <label class="text-sm font-semibold text-gray-700 mb-1 block">Which days? <span class="text-gray-400 font-normal">(pick {{ freqDayCount }})</span></label>
+          <p class="text-gray-400 text-xs mb-3">{{ postingDays.length }}/{{ freqDayCount }} selected</p>
+          <div class="flex gap-2 flex-wrap">
+            <button v-for="d in dayOptions" :key="d.id" @click="togglePostingDay(d.id)"
+              :disabled="!postingDays.includes(d.id) && postingDays.length >= freqDayCount"
+              :class="['px-4 py-3 rounded-xl border-2 text-center transition-all min-w-[56px]',
+                postingDays.includes(d.id) ? 'border-amber-400 bg-amber-50 shadow-md cursor-pointer' : 'border-gray-200 bg-white hover:border-gray-300 cursor-pointer',
+                !postingDays.includes(d.id) && postingDays.length >= freqDayCount ? 'opacity-40 !cursor-not-allowed' : '']">
+              <p class="font-bold text-gray-900 text-sm">{{ d.label }}</p>
             </button>
           </div>
         </div>
@@ -308,10 +432,11 @@ function finishOnboarding() {
           <div class="space-y-2 text-sm">
             <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Business:</span><span class="text-gray-700">{{ businessTypes.find(b => b.id === businessType)?.label || customBusiness }} {{ businessName ? `(${businessName})` : '' }}</span></div>
             <div v-if="location" class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Location:</span><span class="text-gray-700">{{ location }}</span></div>
-            <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Vibe:</span><span class="text-gray-700">{{ vibes.find(v => v.id === vibe)?.label }}</span></div>
+            <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Vibe:</span><span class="text-gray-700">{{ vibe.map(v => vibes.find(x => x.id === v)?.label).join(' + ') }}</span></div>
             <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Platforms:</span><span class="text-gray-700">{{ platforms.map(p => platformOptions.find(o => o.id === p)?.label).join(', ') }}</span></div>
-            <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Frequency:</span><span class="text-gray-700">{{ frequencies.find(f => f.id === frequency)?.label }}</span></div>
+            <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Frequency:</span><span class="text-gray-700">{{ frequencies.find(f => f.id === frequency)?.label }} — {{ postingDays.map(d => dayOptions.find(o => o.id === d)?.label).join(', ') }}</span></div>
             <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Language:</span><span class="text-gray-700">{{ languages.find(l => l.id === language)?.flag }} {{ languages.find(l => l.id === language)?.label }}</span></div>
+            <div v-if="instagramHandle || tiktokHandle || facebookHandle || website" class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Socials:</span><span class="text-gray-700">{{ [instagramHandle, tiktokHandle, facebookHandle, website].filter(Boolean).join(' · ') }}</span></div>
           </div>
         </div>
       </div>

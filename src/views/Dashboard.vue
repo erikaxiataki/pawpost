@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { captionTemplates, platformFormats, weeklyThemes, imageSuggestions, trendingSounds, petHolidays, generateVariants, getCategoryPhoto, getCTA, getSEOKeywords, bestPostingTimes, getFormatRecommendation } from '../data/captions.js'
+import { captionTemplates, platformFormats, weeklyThemes, imageSuggestions, trendingSounds, petHolidays, generateVariants, getCategoryPhoto, getCTA, getSEOKeywords, bestPostingTimes, getFormatRecommendation, hookFrameworks, categoryMeta, weeklyContentMix } from '../data/captions.js'
+import VisualCreator from '../components/VisualCreator.vue'
 
 function getPhoto(caption, fallbackIndex) {
   return caption?.photo || getCategoryPhoto(caption?.category, fallbackIndex || 0)
@@ -14,6 +15,7 @@ const activeTab = ref('calendar')
 const activePlatform = ref('instagram')
 const calView = ref('week')
 const selectedDay = ref(null)
+const detailPanelRef = ref(null)
 const copiedId = ref(null)
 const showProfile = ref(false)
 const darkMode = ref(false)
@@ -22,10 +24,15 @@ const activeVariant = ref(0)
 const detailPlatformTab = ref(null)
 const postedDays = ref({})
 const showContentMix = ref(false)
+const showFullWeek = ref(false)
+const selectedHook = ref(null)
+const hookOverrideText = ref('')
+const showEnhance = ref(false)
+const showIdeas = ref(false)
 
 /* ---- Brand Voice (Pro Feature) ---- */
 const brandVoice = ref({
-  tone: 'warm',
+  tone: ['warm'],
   humor: 50,
   formality: 30,
   emojiLevel: 'moderate',
@@ -41,6 +48,7 @@ const newKeyword = ref('')
 const newAvoidWord = ref('')
 const brandVoiceSaved = ref(false)
 const showProGate = ref(false)
+const proGateFeature = ref('Brand Voice')
 const isProUser = ref(false) // Future: real auth check
 
 /* ---- Instagram Direct Posting (Pro Feature) ---- */
@@ -92,6 +100,12 @@ function addAvoidWord() {
 function removeAvoidWord(word) {
   brandVoice.value.avoidWords = brandVoice.value.avoidWords.filter(k => k !== word)
 }
+function toggleBrandTone(id) {
+  const idx = brandVoice.value.tone.indexOf(id)
+  if (idx > -1 && brandVoice.value.tone.length > 1) brandVoice.value.tone.splice(idx, 1)
+  else if (idx === -1) brandVoice.value.tone.push(id)
+}
+
 function saveBrandVoice() {
   localStorage.setItem('pawpost_brand_voice', JSON.stringify(brandVoice.value))
   brandVoiceSaved.value = true
@@ -99,7 +113,7 @@ function saveBrandVoice() {
 }
 function resetBrandVoice() {
   brandVoice.value = {
-    tone: profile.value?.vibe || 'warm',
+    tone: Array.isArray(profile.value?.vibe) ? [...profile.value.vibe] : [profile.value?.vibe || 'warm'],
     humor: 50,
     formality: 30,
     emojiLevel: 'moderate',
@@ -114,10 +128,12 @@ function resetBrandVoice() {
 }
 function openBrandVoiceTab() {
   if (!isProUser.value) {
+    proGateFeature.value = 'Brand Voice'
     showProGate.value = true
     return
   }
   activeTab.value = 'voice'
+  window.scrollTo(0, 0)
 }
 function unlockPro() {
   // Future: real payment flow
@@ -125,6 +141,7 @@ function unlockPro() {
   localStorage.setItem('pawpost_pro', 'true')
   showProGate.value = false
   activeTab.value = 'voice'
+  window.scrollTo(0, 0)
 }
 
 /* ---- Profile Analyzer ---- */
@@ -207,7 +224,7 @@ function analyzeProfile() {
 function applyAnalysis() {
   if (!analyzerResult.value) return
   const r = analyzerResult.value
-  brandVoice.value.tone = r.tone
+  brandVoice.value.tone = Array.isArray(r.tone) ? r.tone : [r.tone]
   brandVoice.value.emojiLevel = r.emoji
   brandVoice.value.humor = r.humor
   brandVoice.value.formality = r.formality
@@ -245,13 +262,23 @@ onMounted(() => {
   // Load caption edits
   const savedEdits = localStorage.getItem('pawpost_edits')
   if (savedEdits) captionEdits.value = JSON.parse(savedEdits)
+  // Load user-created content
+  const savedCreated = localStorage.getItem('pawpost_created')
+  if (savedCreated) createdContent.value = JSON.parse(savedCreated)
   // Load brand voice
   const savedVoice = localStorage.getItem('pawpost_brand_voice')
-  if (savedVoice) brandVoice.value = JSON.parse(savedVoice)
+  if (savedVoice) {
+    brandVoice.value = JSON.parse(savedVoice)
+    // Migrate tone from string to array if needed
+    if (typeof brandVoice.value.tone === 'string') brandVoice.value.tone = [brandVoice.value.tone]
+  }
   // Load pro status
   isProUser.value = localStorage.getItem('pawpost_pro') === 'true'
   // Set initial tone from onboarding vibe
-  if (!savedVoice && profile.value?.vibe) brandVoice.value.tone = profile.value.vibe
+  if (!savedVoice && profile.value?.vibe) {
+    const v = profile.value.vibe
+    brandVoice.value.tone = Array.isArray(v) ? [...v] : [v]
+  }
 
   // Load Meta/Instagram connection
   const savedMeta = localStorage.getItem('pawpost_meta')
@@ -308,6 +335,8 @@ onMounted(() => {
   }
 })
 
+function scrollTop() { window.scrollTo(0, 0) }
+
 function toggleDark() {
   darkMode.value = !darkMode.value
   localStorage.setItem('pawpost_dark', darkMode.value)
@@ -328,6 +357,68 @@ const captions = computed(() => {
 
 // Custom caption edits stored per day (persisted to localStorage)
 const captionEdits = ref({})
+// User-created content per day — only these show on the calendar
+const createdContent = ref({})
+
+// Unified day key — ISO format YYYY-MM-DD (used for ALL localStorage lookups)
+function getDayKey(day) {
+  const y = day.year || currentYear.value
+  const m = String((day.month ?? currentMonth.value) + 1).padStart(2, '0')
+  const d = String(day.date).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function getDayContentCategory(day) {
+  // Assign a category based on the day's position in the posting week
+  const postingDays = profile.value?.postingDays || [1, 3, 5]
+  const dayIdx = postingDays.indexOf(day.dow)
+  const mix = weeklyContentMix(postingDays.length)
+  return mix[dayIdx >= 0 ? dayIdx % mix.length : 0]
+}
+
+function generateForDay(day) {
+  const type = profile.value?.businessTypeId || 'other'
+  const templates = captionTemplates[type] || captionTemplates.other
+  // Pick from the RIGHT category for this day's slot
+  const targetCategory = getDayContentCategory(day)
+  const categoryTemplates = templates.filter(t => t.category === targetCategory)
+  const pool = categoryTemplates.length > 0 ? categoryTemplates : templates
+  const seed = (day.date + (day.month ?? currentMonth.value) * 31 + (day.year || currentYear.value))
+  const idx = Math.abs(seed) % pool.length
+  const caption = pool[idx]
+  const key = getDayKey(day)
+  createdContent.value[key] = caption
+  localStorage.setItem('pawpost_created', JSON.stringify(createdContent.value))
+  day.caption = caption
+  selectedDay.value = { ...day, caption }
+}
+
+function generateAllVisible() {
+  const days = calView.value === 'week' ? weekDays.value : calendarDays.value
+  const type = profile.value?.businessTypeId || 'other'
+  const templates = captionTemplates[type] || captionTemplates.other
+  let generated = 0
+  for (const day of days) {
+    if (day.empty || !day.isPostingDay || day.caption) continue
+    const targetCategory = getDayContentCategory(day)
+    const categoryTemplates = templates.filter(t => t.category === targetCategory)
+    const pool = categoryTemplates.length > 0 ? categoryTemplates : templates
+    const key = getDayKey(day)
+    const seed = (day.date + (day.month ?? currentMonth.value) * 31 + (day.year || currentYear.value))
+    const idx = Math.abs(seed + generated) % pool.length
+    createdContent.value[key] = pool[idx]
+    generated++
+  }
+  if (generated > 0) localStorage.setItem('pawpost_created', JSON.stringify(createdContent.value))
+}
+
+function removeFromCalendar(day) {
+  const key = getDayKey(day)
+  delete createdContent.value[key]
+  localStorage.setItem('pawpost_created', JSON.stringify(createdContent.value))
+  selectedDay.value = null
+}
+
 function saveEdit(dayKey) {
   if (editingCaption.value !== null) {
     captionEdits.value[dayKey] = editingCaption.value
@@ -346,12 +437,6 @@ function startEdit(text, dayKey) {
 function cancelEdit() { editingCaption.value = null }
 
 // Posted day tracking
-function getDayKey(day) {
-  const y = day.year || currentYear.value
-  const m = String((day.month ?? currentMonth.value) + 1).padStart(2, '0')
-  const d = String(day.date).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
 function togglePosted(day) {
   const key = getDayKey(day)
   if (postedDays.value[key]) delete postedDays.value[key]
@@ -368,6 +453,33 @@ const postedStats = computed(() => {
   const postingDays = days.filter(d => !d.empty && d.caption)
   const posted = postingDays.filter(d => isDayPosted(d))
   return { total: postingDays.length, posted: posted.length }
+})
+
+// Full stats for the stats tab
+const fullStats = computed(() => {
+  const created = Object.keys(createdContent.value).length
+  const posted = Object.keys(postedDays.value).length
+  const edited = Object.keys(captionEdits.value).length
+
+  // Posting streak — count consecutive days ending today
+  const today = new Date()
+  let streak = 0
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (postedDays.value[key]) streak++
+    else if (i > 0) break // don't break on today if not posted yet
+  }
+
+  // Category breakdown from created content
+  const categories = {}
+  Object.values(createdContent.value).forEach(c => {
+    const cat = c?.category || 'other'
+    categories[cat] = (categories[cat] || 0) + 1
+  })
+
+  return { created, posted, edited, streak, categories }
 })
 
 // Content mix breakdown
@@ -387,10 +499,13 @@ const contentMix = computed(() => {
     .sort((a, b) => b.count - a.count)
 })
 
+// Unified key for the currently selected day
+const selectedDayKey = computed(() => selectedDay.value ? getDayKey(selectedDay.value) : '')
+
 // Character count for current caption
 const captionCharCount = computed(() => {
   if (!selectedDay.value?.caption) return null
-  const dayKey = `${selectedDay.value.date}-${selectedDay.value.month}`
+  const dayKey = selectedDayKey.value
   const text = captionEdits.value[dayKey] || formatForPlatform(currentVariants.value[activeVariant.value] || selectedDay.value.caption, detailPlatform.value)
   const hashtags = getHashtags(selectedDay.value.caption, detailPlatform.value)
   const full = text + '\n\n' + hashtags
@@ -402,6 +517,15 @@ const captionCharCount = computed(() => {
 const currentVariants = computed(() => {
   if (!selectedDay.value?.caption) return []
   return generateVariants(selectedDay.value.caption, profile.value?.vibe, profile.value?.businessName, brandVoice.value)
+})
+
+// Hooked text — applies selected hook framework
+const hookedText = computed(() => {
+  if (!selectedHook.value || !selectedDay.value?.caption) return ''
+  const hook = hookFrameworks.find(h => h.id === selectedHook.value)
+  if (!hook) return ''
+  const baseText = currentVariants.value[activeVariant.value]?.text || selectedDay.value.caption.text
+  return hook.transform(baseText, profile.value?.businessName || '', selectedDay.value.caption.category || '')
 })
 
 // Pet holidays — upcoming ones
@@ -421,12 +545,17 @@ function getHolidayForDay(month, day) {
 
 // Posting frequency — which days of the week to post
 function isPostingDay(dow) {
+  // Use custom posting days if set in profile
+  if (profile.value?.postingDays?.length) {
+    return profile.value.postingDays.includes(dow)
+  }
+  // Fallback to defaults
   const freq = profile.value?.frequency || 'daily'
   if (freq === 'daily') return true
-  if (freq === '5x') return dow >= 1 && dow <= 5 // Mon-Fri
-  if (freq === '3x') return dow === 1 || dow === 3 || dow === 5 // Mon, Wed, Fri
-  if (freq === '2x') return dow === 2 || dow === 4 // Tue, Thu
-  if (freq === '1x') return dow === 3 // Wed
+  if (freq === '5x') return dow >= 1 && dow <= 5
+  if (freq === '3x') return dow === 1 || dow === 3 || dow === 5
+  if (freq === '2x') return dow === 2 || dow === 4
+  if (freq === '1x') return dow === 3
   return true
 }
 
@@ -438,21 +567,21 @@ const calendarDays = computed(() => {
   const today = new Date()
   const days = []
   for (let i = 0; i < firstDay; i++) days.push({ empty: true })
-  let captionIdx = 0
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d)
     const dow = date.getDay()
     const posting = isPostingDay(dow)
+    const key = `${year}-${month}-${d}`
+    const created = createdContent.value[key] || null
     days.push({
       date: d, dow, month, year,
       theme: weeklyThemes[dow],
-      caption: posting ? captions.value[captionIdx % captions.value.length] : null,
+      caption: created,
       isToday: today.getDate() === d && today.getMonth() === month && today.getFullYear() === year,
       isPast: date < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
       holiday: getHolidayForDay(month, d),
       isPostingDay: posting,
     })
-    if (posting) captionIdx++
   }
   return days
 })
@@ -460,7 +589,6 @@ const calendarDays = computed(() => {
 const weekDays = computed(() => {
   const today = new Date()
   const days = []
-  let wkCaptionIdx = 0
   for (let i = 0; i < 7; i++) {
     const date = new Date(currentWeekStart.value)
     date.setDate(date.getDate() + i)
@@ -469,10 +597,12 @@ const weekDays = computed(() => {
     const year = date.getFullYear()
     const dow = date.getDay()
     const posting = isPostingDay(dow)
+    const key = `${year}-${month}-${d}`
+    const created = createdContent.value[key] || null
     days.push({
       date: d, dow, month, year,
       theme: weeklyThemes[dow],
-      caption: posting ? captions.value[(d - 1) % captions.value.length] : null,
+      caption: created,
       isToday: today.getDate() === d && today.getMonth() === month && today.getFullYear() === year,
       isPast: date < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
       dateObj: date,
@@ -480,9 +610,26 @@ const weekDays = computed(() => {
       holiday: getHolidayForDay(month, d),
       isPostingDay: posting,
     })
-    if (posting) wkCaptionIdx++
   }
   return days
+})
+
+// Filtered week days — only show relevant days (content + future posting days)
+const visibleWeekDays = computed(() => {
+  if (showFullWeek.value) return weekDays.value
+  return weekDays.value.filter(d => d.caption || (d.isPostingDay && !d.isPast) || d.isToday)
+})
+
+// Filtered calendar days — hide past empty non-posting days
+const visibleCalendarDays = computed(() => {
+  return calendarDays.value.map(day => {
+    if (day.empty) return day
+    // Hide past days without content that aren't posting days
+    if (day.isPast && !day.caption) return { ...day, hidden: true }
+    // Hide non-posting days without content
+    if (!day.isPostingDay && !day.caption && !day.isToday) return { ...day, hidden: true }
+    return day
+  })
 })
 
 const weekLabel = computed(() => {
@@ -538,7 +685,7 @@ function getHashtags(caption, platform) {
 }
 
 function copyCaption(caption, platform, id) {
-  const dayKey = `${selectedDay.value?.date}-${selectedDay.value?.month}`
+  const dayKey = selectedDayKey.value
   const customText = captionEdits.value[dayKey]
   const text = customText || formatForPlatform(caption, platform)
   const full = text + '\n\n' + getHashtags(caption, platform)
@@ -563,6 +710,7 @@ function disconnectInstagram() {
 
 function startPostToInstagram(caption, platform) {
   if (!isProUser.value) {
+    proGateFeature.value = 'Instagram Posting'
     showProGate.value = true
     return
   }
@@ -571,7 +719,7 @@ function startPostToInstagram(caption, platform) {
     return
   }
   // Build the caption text
-  const dayKey = `${selectedDay.value?.date}-${selectedDay.value?.month}`
+  const dayKey = selectedDayKey.value
   const customText = captionEdits.value[dayKey]
   const text = customText || formatForPlatform(caption, platform)
   const full = text + '\n\n' + getHashtags(caption, platform)
@@ -601,8 +749,8 @@ async function postToInstagram() {
       postingStatus.value = 'success'
       // Mark this day as posted
       if (selectedDay.value) {
-        const dayKey = `${selectedDay.value.date}-${selectedDay.value.month}`
-        postedDays.value[dayKey] = true
+        const dayKey = getDayKey(selectedDay.value)
+        postedDays.value[dayKey] = new Date().toISOString()
         localStorage.setItem('pawpost_posted', JSON.stringify(postedDays.value))
       }
       setTimeout(() => postingStatus.value = null, 4000)
@@ -621,7 +769,17 @@ async function postToInstagram() {
 function selectDay(day) {
   if (day.empty) return
   showDetailExtras.value = false
-  selectedDay.value = selectedDay.value?.date === day.date && selectedDay.value?.month === day.month ? null : day
+  showEnhance.value = false
+  showIdeas.value = false
+  selectedHook.value = null
+  hookOverrideText.value = ''
+  const isToggleOff = selectedDay.value?.date === day.date && selectedDay.value?.month === day.month
+  selectedDay.value = isToggleOff ? null : day
+  if (!isToggleOff) {
+    nextTick(() => {
+      detailPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 }
 
 function prevMonth() {
@@ -631,6 +789,49 @@ function prevMonth() {
 function nextMonth() {
   if (currentMonth.value === 11) { currentMonth.value = 0; currentYear.value++ }
   else currentMonth.value++
+}
+
+const restoreEmail = ref('')
+const restoreLoading = ref(false)
+const restoreMsg = ref('')
+const restoreError = ref(false)
+
+async function saveProfileToCloud() {
+  const email = restoreEmail.value.trim()
+  if (!email || !email.includes('@')) { restoreMsg.value = 'Enter a valid email'; restoreError.value = true; return }
+  restoreLoading.value = true; restoreMsg.value = ''; restoreError.value = false
+  try {
+    const res = await fetch('/api/save-profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, profile: { ...profile.value, createdContent: createdContent.value, captionEdits: captionEdits.value } }),
+    })
+    if (res.ok) { restoreMsg.value = 'Profile saved!'; restoreError.value = false }
+    else { restoreMsg.value = 'Save failed'; restoreError.value = true }
+  } catch { restoreMsg.value = 'Save failed'; restoreError.value = true }
+  restoreLoading.value = false
+  setTimeout(() => { restoreMsg.value = '' }, 3000)
+}
+
+async function restoreProfileFromCloud() {
+  const email = restoreEmail.value.trim()
+  if (!email || !email.includes('@')) { restoreMsg.value = 'Enter a valid email'; restoreError.value = true; return }
+  restoreLoading.value = true; restoreMsg.value = ''; restoreError.value = false
+  try {
+    const res = await fetch('/api/get-profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    if (res.ok) {
+      const { profile: restored } = await res.json()
+      if (restored.createdContent) { createdContent.value = restored.createdContent; localStorage.setItem('pawpost_created', JSON.stringify(restored.createdContent)); delete restored.createdContent }
+      if (restored.captionEdits) { captionEdits.value = restored.captionEdits; localStorage.setItem('pawpost_edits', JSON.stringify(restored.captionEdits)); delete restored.captionEdits }
+      profile.value = restored
+      localStorage.setItem('pawpost_profile', JSON.stringify(restored))
+      restoreMsg.value = 'Profile restored!'; restoreError.value = false
+    } else { restoreMsg.value = 'No profile found for this email'; restoreError.value = true }
+  } catch { restoreMsg.value = 'Restore failed'; restoreError.value = true }
+  restoreLoading.value = false
+  setTimeout(() => { restoreMsg.value = '' }, 3000)
 }
 
 function resetProfile() { localStorage.removeItem('pawpost_profile'); router.push('/onboarding') }
@@ -717,8 +918,9 @@ function exportCSV() {
 
         <div class="dash-nav-actions">
           <div class="dash-tab-group">
-            <button @click="activeTab = 'calendar'" :class="['dash-tab', activeTab === 'calendar' && 'active']">📅 Calendar</button>
-            <button @click="activeTab = 'captions'" :class="['dash-tab', activeTab === 'captions' && 'active']">✍️ Captions</button>
+            <button @click="activeTab = 'calendar'; selectedDay = null; scrollTop()" :class="['dash-tab', activeTab === 'calendar' && 'active']">📅 Calendar</button>
+            <button @click="activeTab = 'captions'; scrollTop()" :class="['dash-tab', activeTab === 'captions' && 'active']">✍️ Captions</button>
+            <button @click="activeTab = 'stats'; scrollTop()" :class="['dash-tab', activeTab === 'stats' && 'active']">📊 Stats</button>
             <button @click="openBrandVoiceTab" :class="['dash-tab', activeTab === 'voice' && 'active']">
               🎨 Voice
               <span v-if="!isProUser" class="dash-pro-badge">PRO</span>
@@ -753,6 +955,22 @@ function exportCSV() {
             <span class="dash-profile-label">📱</span>
             <span>{{ profile.platforms?.map(p => platformFormats[p]?.label).join(', ') }}</span>
           </div>
+          <div v-if="profile.instagramHandle" class="dash-profile-row">
+            <span class="dash-profile-label">📷</span>
+            <span>{{ profile.instagramHandle }}</span>
+          </div>
+          <div v-if="profile.tiktokHandle" class="dash-profile-row">
+            <span class="dash-profile-label">🎵</span>
+            <span>{{ profile.tiktokHandle }}</span>
+          </div>
+          <div v-if="profile.facebookHandle" class="dash-profile-row">
+            <span class="dash-profile-label">👤</span>
+            <span>{{ profile.facebookHandle }}</span>
+          </div>
+          <div v-if="profile.website" class="dash-profile-row">
+            <span class="dash-profile-label">🌐</span>
+            <span>{{ profile.website }}</span>
+          </div>
         </div>
         <div class="dash-freq-section">
           <span class="dash-freq-label">📊 Posting frequency</span>
@@ -781,6 +999,17 @@ function exportCSV() {
           </button>
         </div>
 
+        <!-- Restore / Backup by email -->
+        <div class="dash-restore-section">
+          <span class="dash-restore-label">💾 Backup & Restore</span>
+          <div class="dash-restore-row">
+            <input v-model="restoreEmail" type="email" placeholder="your@email.com" class="dash-restore-input" />
+            <button @click="saveProfileToCloud" class="dash-restore-btn" :disabled="restoreLoading">Save</button>
+            <button @click="restoreProfileFromCloud" class="dash-restore-btn restore" :disabled="restoreLoading">Restore</button>
+          </div>
+          <p v-if="restoreMsg" :class="['dash-restore-msg', restoreError && 'error']">{{ restoreMsg }}</p>
+        </div>
+
         <button @click="resetProfile" class="dash-profile-reset">Redo Onboarding</button>
       </div>
     </Transition>
@@ -794,12 +1023,12 @@ function exportCSV() {
         <div class="dash-welcome-inner">
           <div>
             <h1 class="dash-welcome-title">{{ profile.businessName ? `${profile.businessName}` : 'Your Dashboard' }}</h1>
-            <p class="dash-welcome-sub">Your content is ready. Pick a day, copy, and post.</p>
+            <p class="dash-welcome-sub">{{ Object.keys(createdContent).length > 0 ? 'Pick a day, copy, and post.' : 'Tap Generate to create your content.' }}</p>
           </div>
           <div class="dash-stats">
             <div class="dash-stat">
-              <span class="dash-stat-num">{{ captions.length }}</span>
-              <span class="dash-stat-label">Captions</span>
+              <span class="dash-stat-num">{{ Object.keys(createdContent).length }}</span>
+              <span class="dash-stat-label">Created</span>
             </div>
             <div class="dash-stat-divider"></div>
             <div class="dash-stat">
@@ -879,6 +1108,7 @@ function exportCSV() {
             </button>
           </div>
           <div class="dash-view-toggle">
+            <button @click="generateAllVisible" class="dash-generate-btn">✨ Generate</button>
             <button v-if="calView === 'week'" @click="goToThisWeek" class="dash-today-btn">Today</button>
             <div class="dash-view-group">
               <button @click="calView = 'week'" :class="['dash-view-btn', calView === 'week' && 'active']">Week</button>
@@ -906,16 +1136,19 @@ function exportCSV() {
             </div>
           </div>
           <div class="dash-cal-grid">
-            <div v-for="(day, i) in calendarDays" :key="i"
-              @click="selectDay(day)"
-              :class="['dash-cal-cell', day.empty && 'empty', !day.empty && 'has-content', day.isToday && 'today', day.isPast && 'past', selectedDay?.date === day.date && selectedDay?.month === day.month && 'selected', isDayPosted(day) && 'posted']">
-              <template v-if="!day.empty">
+            <div v-for="(day, i) in visibleCalendarDays" :key="i"
+              @click="!day.hidden && !day.empty && (day.caption ? selectDay(day) : (day.isPostingDay ? generateForDay(day) : null))"
+              :class="['dash-cal-cell', day.empty && 'empty', day.hidden && 'hidden-day', !day.empty && !day.hidden && 'has-content', day.isToday && 'today', selectedDay?.date === day.date && selectedDay?.month === day.month && 'selected', isDayPosted(day) && 'posted', !day.empty && !day.hidden && day.isPostingDay && !day.caption && 'empty-posting']">
+              <template v-if="!day.empty && !day.hidden">
                 <span :class="['dash-cal-date', day.isToday && 'today-badge']">{{ day.date }}</span>
                 <div class="dash-cal-dots">
                   <span v-if="day.caption && isDayPosted(day)" class="dash-cal-check">✓</span>
-                  <span v-else-if="day.caption" class="dash-cal-dot"></span>
+                  <span v-else-if="day.caption" class="dash-cal-dot" :style="{ background: categoryMeta[day.caption?.category]?.color || '#f59e0b' }"></span>
                   <span v-if="day.holiday" class="dash-cal-holiday-dot"></span>
                 </div>
+              </template>
+              <template v-if="!day.empty && day.hidden">
+                <span class="dash-cal-date" style="opacity:0">{{ day.date }}</span>
               </template>
             </div>
           </div>
@@ -923,63 +1156,286 @@ function exportCSV() {
 
         <!-- ===== WEEK VIEW ===== -->
         <div v-if="calView === 'week'" class="dash-week">
-          <div v-for="(day, i) in weekDays" :key="i"
-            @click="day.caption && selectDay(day)"
-            :class="['dash-week-card', day.isToday && 'today', day.isPast && 'past', !day.caption && 'rest-day', selectedDay?.date === day.date && selectedDay?.month === day.month && 'selected', isDayPosted(day) && 'posted']">
-            <div class="dash-week-card-header">
-              <div class="dash-week-card-date">
-                <span class="dash-week-card-dow">{{ dayNamesFull[day.dow] }}</span>
-                <span :class="['dash-week-card-num', day.isToday && 'today-badge']">{{ day.date }}</span>
+          <template v-for="(day, i) in visibleWeekDays" :key="i">
+            <div
+              @click="day.caption ? selectDay(day) : (day.isPostingDay ? generateForDay(day) : null)"
+              :class="['dash-week-card', day.isToday && 'today', day.isPast && 'past', !day.caption && !day.isPostingDay && 'rest-day', !day.caption && day.isPostingDay && 'empty-day', selectedDay?.date === day.date && selectedDay?.month === day.month && 'selected', isDayPosted(day) && 'posted']">
+              <!-- Clean header: day + date only -->
+              <div class="dash-week-card-header">
+                <div class="dash-week-card-date">
+                  <span class="dash-week-card-dow">{{ dayNamesFull[day.dow] }}</span>
+                  <span :class="['dash-week-card-num', day.isToday && 'today-badge']">{{ day.date }}</span>
+                </div>
+                <span v-if="isDayPosted(day)" class="dash-posted-badge">✓</span>
               </div>
-              <div class="dash-week-card-right">
-                <span v-if="isDayPosted(day)" class="dash-posted-badge">✓ Posted</span>
-                <span v-if="day.caption && bestPostingTimes[day.dow]" class="dash-time-badge">🕐 {{ bestPostingTimes[day.dow].time }}</span>
-                <div class="dash-week-card-theme">
-                  <span>{{ day.theme?.icon }}</span>
-                  <span class="dash-week-card-theme-name">{{ day.theme?.theme }}</span>
+
+              <!-- Rest day -->
+              <div v-if="!day.caption && !day.isPostingDay" class="dash-week-card-rest">
+                <span class="dash-rest-label">Rest Day</span>
+              </div>
+
+              <!-- Smart empty state — shows WHAT to post -->
+              <div v-if="!day.caption && day.isPostingDay" class="dash-week-card-empty">
+                <span class="dash-empty-cat" :style="{ color: categoryMeta[getDayContentCategory(day)]?.color }">
+                  {{ categoryMeta[getDayContentCategory(day)]?.icon }} {{ categoryMeta[getDayContentCategory(day)]?.label }}
+                </span>
+                <span class="dash-empty-tip">{{ categoryMeta[getDayContentCategory(day)]?.tip }}</span>
+                <span class="dash-empty-btn">Generate →</span>
+              </div>
+
+              <!-- Content card: thumbnail + short caption -->
+              <template v-if="day.caption">
+                <div class="dash-week-card-img">
+                  <img :src="getPhoto(day.caption, day.date)" :alt="day.caption.imageIdea || ''" loading="lazy" @error="$event.target.parentElement.style.background='linear-gradient(135deg, #fef3c7, #fed7aa)'; $event.target.style.display='none'" />
+                </div>
+                <p class="dash-week-card-caption">{{ personalizeCaption(day.caption?.text || '').substring(0, 60) }}</p>
+                <span class="dash-week-card-cat" :style="{ background: (categoryMeta[day.caption?.category]?.color || '#f59e0b') + '18', color: categoryMeta[day.caption?.category]?.color || '#f59e0b' }">
+                  {{ categoryMeta[day.caption?.category]?.icon }} {{ day.caption?.category }}
+                </span>
+              </template>
+            </div>
+
+            <!-- ===== INLINE DETAIL — opens right below the clicked card ===== -->
+            <div v-if="selectedDay && selectedDay.date === day.date && selectedDay.month === day.month" class="dash-detail dash-detail--inline" ref="detailPanelRef" @click.stop>
+              <div class="dash-detail-card">
+                <div class="dash-detail-header">
+                  <div>
+                    <p class="dash-detail-date">{{ selectedDay.month !== undefined ? monthNames[selectedDay.month] : monthNames[currentMonth] }} {{ selectedDay.date }}, {{ selectedDay.year || currentYear }}</p>
+                    <h3 class="dash-detail-theme">{{ selectedDay.theme?.icon }} {{ selectedDay.theme?.theme }}</h3>
+                    <div v-if="selectedDay.holiday" class="dash-detail-holiday">
+                      {{ selectedDay.holiday.icon }} {{ selectedDay.holiday.name }}
+                      <span class="dash-detail-holiday-tip">{{ selectedDay.holiday.tip }}</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <button @click="removeFromCalendar(selectedDay)" class="dash-remove-btn" title="Remove from calendar">🗑</button>
+                    <button @click="selectedDay = null" class="dash-detail-close">&times;</button>
+                  </div>
+                </div>
+
+                <div class="dash-detail-status-bar">
+                  <span v-if="bestPostingTimes[selectedDay.dow]" class="dash-detail-best-time">
+                    🕐 Best time: <strong>{{ bestPostingTimes[selectedDay.dow].time }}</strong>
+                    <span class="dash-best-time-note">{{ bestPostingTimes[selectedDay.dow].note }}</span>
+                  </span>
+                  <button class="dash-detail-post-btn" @click="togglePosted(selectedDay)"
+                    :class="{ posted: isDayPosted(selectedDay) }">
+                    {{ isDayPosted(selectedDay) ? '✓ Posted' : '○ Mark as Posted' }}
+                  </button>
+                </div>
+
+                <div class="dash-detail-platform-tabs">
+                  <button v-for="pid in (profile.platforms || ['instagram'])" :key="pid"
+                    @click="detailPlatformTab = pid"
+                    :class="['dash-detail-ptab', detailPlatform === pid && 'active']">
+                    {{ platformFormats[pid]?.emoji }} {{ platformFormats[pid]?.label }}
+                  </button>
+                </div>
+
+                <div class="dash-detail-body">
+                  <div class="dash-detail-section">
+                    <div class="dash-detail-section-head">
+                      <span class="dash-detail-badge" :style="{ background: (categoryMeta[selectedDay.caption?.category]?.color || '#f59e0b') + '18', color: categoryMeta[selectedDay.caption?.category]?.color }">
+                        {{ categoryMeta[selectedDay.caption?.category]?.icon }} {{ categoryMeta[selectedDay.caption?.category]?.label || selectedDay.caption?.category }}
+                      </span>
+                      <span class="dash-format-pill" v-if="selectedDay.caption?.category">
+                        {{ getFormatRecommendation(selectedDay.caption.category).icon }} {{ getFormatRecommendation(selectedDay.caption.category).format }}
+                      </span>
+                    </div>
+
+                    <div v-if="currentVariants.length > 1" class="dash-variant-header">
+                      <div class="dash-variant-tabs">
+                        <button v-for="(v, vi) in currentVariants" :key="vi"
+                          @click="activeVariant = vi; editingCaption = null"
+                          :class="['dash-variant-btn', !abMode && activeVariant === vi && 'active']"
+                          v-show="!abMode">
+                          {{ v.variantLabel }}
+                        </button>
+                      </div>
+                      <button @click="abMode = !abMode" :class="['dash-ab-toggle', abMode && 'active']">
+                        {{ abMode ? '← Single view' : 'A/B Compare' }}
+                      </button>
+                    </div>
+
+                    <div v-if="abMode && currentVariants.length > 1" class="dash-ab-grid">
+                      <div v-for="(v, vi) in currentVariants.slice(0, 2)" :key="vi"
+                        :class="['dash-ab-card', activeVariant === vi && 'selected']"
+                        @click="activeVariant = vi">
+                        <div class="dash-ab-label">{{ vi === 0 ? 'A' : 'B' }}</div>
+                        <div class="dash-ab-variant-name">{{ v.variantLabel }}</div>
+                        <p class="dash-ab-text">{{ formatForPlatform(v, detailPlatform) }}</p>
+                        <button @click.stop="activeVariant = vi" :class="['dash-ab-pick', activeVariant === vi && 'picked']">
+                          {{ activeVariant === vi ? '✓ Selected' : 'Use this one' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="dash-detail-caption-wrap">
+                      <div v-if="editingCaption !== null" class="dash-edit-area">
+                        <textarea v-model="editingCaption" class="dash-edit-textarea" rows="4"></textarea>
+                        <div class="dash-edit-actions">
+                          <button @click="saveEdit(selectedDayKey)" class="dash-edit-save">Save</button>
+                          <button @click="cancelEdit" class="dash-edit-cancel">Cancel</button>
+                        </div>
+                      </div>
+                      <div v-else class="dash-detail-caption" @click="startEdit(captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform), selectedDayKey)">
+                        {{ captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform) }}
+                        <span class="dash-edit-hint">tap to edit</span>
+                      </div>
+                      <button v-if="captionEdits[selectedDayKey]" class="dash-reset-edit" @click="resetEdit(selectedDayKey)">
+                        ↩ Reset to original
+                      </button>
+                    </div>
+
+                    <div v-if="captionCharCount" class="dash-char-counter">
+                      <div class="dash-char-bar">
+                        <div class="dash-char-fill" :class="{ warn: captionCharCount.percent > 80, over: captionCharCount.percent > 95 }" :style="{ width: Math.min(captionCharCount.percent, 100) + '%' }"></div>
+                      </div>
+                      <span :class="['dash-char-text', captionCharCount.percent > 95 && 'over']">
+                        {{ captionCharCount.current.toLocaleString() }} / {{ captionCharCount.max.toLocaleString() }} chars
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="dash-step1-actions">
+                    <button @click="copyCaption(currentVariants[activeVariant] || selectedDay.caption, detailPlatform, 'detail')"
+                      :class="['dash-action-pill', copiedId === 'detail' && 'copied']">
+                      {{ copiedId === 'detail' ? '✓ Copied' : '📋 Copy' }}
+                    </button>
+                    <button @click="showEnhance = !showEnhance" :class="['dash-action-pill', 'enhance', showEnhance && 'active']">✨ Enhance</button>
+                    <button @click="showIdeas = !showIdeas" :class="['dash-action-pill', 'ideas', showIdeas && 'active']">💡 Ideas</button>
+                  </div>
+
+                  <div v-show="showEnhance" class="dash-step-section">
+                    <div class="dash-step-header">✨ Enhance Your Caption</div>
+                    <div class="dash-hooks-section">
+                      <span class="dash-hooks-title">🪝 Hook It</span>
+                      <div class="dash-hooks-row">
+                        <button v-for="h in hookFrameworks" :key="h.id"
+                          @click="selectedHook = selectedHook === h.id ? null : h.id"
+                          :class="['dash-hook-chip', selectedHook === h.id && 'active']">
+                          {{ h.icon }} {{ h.name }}
+                        </button>
+                      </div>
+                      <div v-if="selectedHook && hookedText" class="dash-hooked-preview">
+                        <p class="dash-hooked-text">{{ hookedText }}</p>
+                        <div class="dash-hooked-actions">
+                          <button @click="copyCaption({ text: hookedText }, detailPlatform, 'hooked')" :class="['dash-hook-copy-btn', copiedId === 'hooked' && 'copied']">
+                            {{ copiedId === 'hooked' ? '✓ Copied' : '📋 Copy' }}
+                          </button>
+                          <button @click="hookOverrideText = hookedText" class="dash-hook-visual-btn">🎨 Use in Visual</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="dash-detail-section">
+                      <span class="dash-detail-label"># Hashtags</span>
+                      <div class="dash-detail-tags">
+                        <span v-for="tag in getHashtags(selectedDay.caption, detailPlatform).split(' ')" :key="tag" class="dash-tag">{{ tag }}</span>
+                      </div>
+                    </div>
+                    <div class="dash-detail-section">
+                      <span class="dash-detail-label">📣 Call to Action</span>
+                      <div class="dash-cta-chips">
+                        <span v-for="(cta, ci) in [getCTA(selectedDay.caption?.category, 0), getCTA(selectedDay.caption?.category, 1), getCTA(selectedDay.caption?.category, 2)]" :key="ci"
+                          class="dash-cta-chip" @click="startEdit((captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)) + '\n\n' + cta, selectedDayKey)">
+                          {{ cta }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-if="selectedDay.caption?.engagementHook" class="dash-detail-section">
+                      <span class="dash-detail-label">🔥 Engagement</span>
+                      <div class="dash-engage-compact">
+                        <span :class="['dash-engage-type-badge', `dash-engage-${selectedDay.caption.engagementHook.type}`]">
+                          {{ selectedDay.caption.engagementHook.type === 'comment' ? '💬 Comment' : selectedDay.caption.engagementHook.type === 'save' ? '🔖 Save' : '📤 Share' }}
+                        </span>
+                        <p class="dash-engage-prompt">{{ selectedDay.caption.engagementHook.prompt }}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-show="showIdeas" class="dash-step-section">
+                    <div class="dash-step-header">💡 Ideas & Inspiration</div>
+                    <div class="dash-detail-section">
+                      <span class="dash-detail-label">📷 Photo Ideas</span>
+                      <div class="dash-detail-photo-gallery">
+                        <img v-for="(photo, pi) in [getPhoto(selectedDay.caption, 0), getCategoryPhoto(selectedDay.caption?.category, 1), getCategoryPhoto(selectedDay.caption?.category, 2)]" :key="pi"
+                          :src="photo" :alt="selectedDay.caption?.imageIdea" class="dash-detail-gallery-img" loading="lazy" />
+                      </div>
+                      <p class="dash-detail-image-main">{{ selectedDay.caption?.imageIdea }}</p>
+                    </div>
+                    <div v-if="selectedDay.caption?.videoIdea" class="dash-detail-section">
+                      <span class="dash-detail-label">🎬 Video Idea</span>
+                      <div class="dash-video-box">
+                        <p class="dash-video-text">{{ selectedDay.caption.videoIdea }}</p>
+                        <div class="dash-video-badges">
+                          <span class="dash-video-badge">🎵 TikTok</span>
+                          <span class="dash-video-badge">📹 Reels</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="dash-detail-section">
+                      <span class="dash-detail-label">🎵 Trending Sounds</span>
+                      <div class="dash-detail-sounds">
+                        <div v-for="sound in getTrendingSounds(selectedDay.caption?.category, detailPlatform)" :key="sound.name" class="dash-sound-item">
+                          <div class="dash-sound-info">
+                            <span class="dash-sound-name">{{ sound.name }}</span>
+                            <span class="dash-sound-tip">{{ sound.tip }}</span>
+                          </div>
+                        </div>
+                        <p v-if="getTrendingSounds(selectedDay.caption?.category, detailPlatform).length === 0" class="dash-sound-none">No trending sounds for this category yet</p>
+                      </div>
+                    </div>
+                    <div class="dash-detail-section">
+                      <span class="dash-detail-label">🔍 SEO Keywords</span>
+                      <div class="dash-seo-tags">
+                        <span v-for="kw in getSEOKeywords(profile?.businessType).primary" :key="kw" class="dash-seo-tag primary">{{ kw }}</span>
+                        <span v-for="kw in getSEOKeywords(profile?.businessType).secondary" :key="kw" class="dash-seo-tag secondary">{{ kw }}</span>
+                      </div>
+                    </div>
+                    <div class="dash-detail-tip">
+                      <span class="dash-detail-tip-label">💡 Tip</span>
+                      <p>{{ selectedDay.theme?.suggestion }}</p>
+                    </div>
+                  </div>
+
+                  <div class="dash-action-btns">
+                    <button @click="copyCaption(currentVariants[activeVariant] || selectedDay.caption, detailPlatform, 'detail')"
+                      :class="['dash-copy-btn', copiedId === 'detail' && 'copied']">
+                      {{ copiedId === 'detail' ? '✓ Copied to clipboard' : `Copy for ${platformFormats[detailPlatform]?.label}` }}
+                    </button>
+                    <button v-if="detailPlatform === 'instagram'"
+                      @click="startPostToInstagram(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)"
+                      :class="['dash-post-btn', postingStatus === 'success' && 'posted', postingStatus === 'posting' && 'posting']"
+                      :disabled="postingStatus === 'posting'">
+                      <template v-if="postingStatus === 'posting'">⏳ Posting...</template>
+                      <template v-else-if="postingStatus === 'success'">✅ Posted!</template>
+                      <template v-else>📤 Post to Instagram{{ !isProUser ? ' (Pro)' : '' }}</template>
+                    </button>
+                  </div>
+                  <p v-if="postingStatus === 'error' && postingError" class="dash-post-error">{{ postingError }}</p>
+
+                  <VisualCreator
+                    v-if="selectedDay?.caption"
+                    :caption="selectedDay.caption"
+                    :profile="profile"
+                    :brand-voice="brandVoice"
+                    :is-pro="isProUser"
+                    :override-text="hookOverrideText"
+                    @upgrade="proGateFeature = 'AI Images'; showProGate = true"
+                  />
                 </div>
               </div>
             </div>
-            <!-- Mark as posted button -->
-            <button v-if="day.caption" class="dash-post-toggle" @click.stop="togglePosted(day)">
-              {{ isDayPosted(day) ? '✓ Posted' : '○ Mark as Posted' }}
-            </button>
-            <!-- Rest day -->
-            <div v-if="!day.caption" class="dash-week-card-rest">
-              <span class="dash-rest-icon">😌</span>
-              <span class="dash-rest-label">Rest Day</span>
-              <span class="dash-rest-sub">No post scheduled</span>
-            </div>
-            <!-- Photo thumbnail -->
-            <div v-if="day.caption" class="dash-week-card-img">
-              <img :src="getPhoto(day.caption, day.date)" :alt="day.caption.imageIdea" loading="lazy" />
-            </div>
-            <!-- Holiday badge -->
-            <div v-if="day.holiday" class="dash-week-card-holiday">
-              {{ day.holiday.icon }} {{ day.holiday.name }}
-            </div>
-            <p v-if="day.caption" class="dash-week-card-caption">{{ personalizeCaption(day.caption?.text || '').substring(0, 140) }}...</p>
-            <div v-if="day.caption" class="dash-week-card-footer">
-              <span class="dash-week-card-cat">{{ day.caption?.category }}</span>
-              <span v-if="captionEdits[`${day.date}-${day.month}`]" class="dash-edited-badge">✏️ Edited</span>
-              <span v-if="day.caption?.engagementHook" :class="['dash-week-card-engage', `engage-${day.caption.engagementHook.type}`]">
-                {{ day.caption.engagementHook.type === 'comment' ? '💬' : day.caption.engagementHook.type === 'save' ? '🔖' : '📤' }}
-                {{ day.caption.engagementHook.type }}
-              </span>
-              <span v-if="activePlatform === 'tiktok' && day.caption?.videoIdea" class="dash-week-card-photo">🎬 {{ day.caption?.videoIdea?.substring(0, 60) }}...</span>
-              <span v-else class="dash-week-card-photo">📷 {{ day.caption?.imageIdea }}</span>
-              <span v-if="getTrendingSounds(day.caption?.category, activePlatform)[0]" class="dash-week-card-sound">
-                🎵 {{ getTrendingSounds(day.caption?.category, activePlatform)[0]?.name }}
-              </span>
-            </div>
-          </div>
+          </template>
+          <!-- Show full week toggle -->
+          <button v-if="visibleWeekDays.length < weekDays.length" class="dash-show-full-week" @click="showFullWeek = !showFullWeek">
+            {{ showFullWeek ? '✕ Show less' : '📅 Show full week (' + weekDays.length + ' days)' }}
+          </button>
         </div>
 
-        <!-- ===== SELECTED DAY DETAIL ===== -->
-        <Transition name="slide-up">
-          <div v-if="selectedDay" class="dash-detail">
+        <!-- ===== SELECTED DAY DETAIL (month view only) ===== -->
+          <div v-if="selectedDay && calView === 'month'" class="dash-detail" ref="detailPanelRef">
             <div class="dash-detail-card">
-              <!-- Header -->
               <div class="dash-detail-header">
                 <div>
                   <p class="dash-detail-date">{{ selectedDay.month !== undefined ? monthNames[selectedDay.month] : monthNames[currentMonth] }} {{ selectedDay.date }}, {{ selectedDay.year || currentYear }}</p>
@@ -989,10 +1445,12 @@ function exportCSV() {
                     <span class="dash-detail-holiday-tip">{{ selectedDay.holiday.tip }}</span>
                   </div>
                 </div>
-                <button @click="selectedDay = null" class="dash-detail-close">&times;</button>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <button @click="removeFromCalendar(selectedDay)" class="dash-remove-btn" title="Remove from calendar">🗑</button>
+                  <button @click="selectedDay = null" class="dash-detail-close">&times;</button>
+                </div>
               </div>
 
-              <!-- Best time + Posted status bar -->
               <div class="dash-detail-status-bar">
                 <span v-if="bestPostingTimes[selectedDay.dow]" class="dash-detail-best-time">
                   🕐 Best time: <strong>{{ bestPostingTimes[selectedDay.dow].time }}</strong>
@@ -1004,7 +1462,6 @@ function exportCSV() {
                 </button>
               </div>
 
-              <!-- Platform tabs in detail -->
               <div class="dash-detail-platform-tabs">
                 <button v-for="pid in (profile.platforms || ['instagram'])" :key="pid"
                   @click="detailPlatformTab = pid"
@@ -1013,23 +1470,17 @@ function exportCSV() {
                 </button>
               </div>
 
-              <!-- Body -->
               <div class="dash-detail-body">
-                <!-- Caption variant selector -->
                 <div class="dash-detail-section">
                   <div class="dash-detail-section-head">
-                    <span class="dash-detail-label">Caption for {{ platformFormats[detailPlatform]?.label }}</span>
-                    <span class="dash-detail-badge">{{ selectedDay.caption?.category }}</span>
+                    <span class="dash-detail-badge" :style="{ background: (categoryMeta[selectedDay.caption?.category]?.color || '#f59e0b') + '18', color: categoryMeta[selectedDay.caption?.category]?.color }">
+                      {{ categoryMeta[selectedDay.caption?.category]?.icon }} {{ categoryMeta[selectedDay.caption?.category]?.label || selectedDay.caption?.category }}
+                    </span>
+                    <span class="dash-format-pill" v-if="selectedDay.caption?.category">
+                      {{ getFormatRecommendation(selectedDay.caption.category).icon }} {{ getFormatRecommendation(selectedDay.caption.category).format }}
+                    </span>
                   </div>
 
-                  <!-- Format Recommendation -->
-                  <div class="dash-format-rec" v-if="selectedDay.caption?.category">
-                    <span class="dash-format-icon">{{ getFormatRecommendation(selectedDay.caption.category).icon }}</span>
-                    <span class="dash-format-label">Best as <strong>{{ getFormatRecommendation(selectedDay.caption.category).format }}</strong></span>
-                    <span class="dash-format-reason">{{ getFormatRecommendation(selectedDay.caption.category).reason }}</span>
-                  </div>
-
-                  <!-- Variant tabs + A/B toggle -->
                   <div v-if="currentVariants.length > 1" class="dash-variant-header">
                     <div class="dash-variant-tabs">
                       <button v-for="(v, vi) in currentVariants" :key="vi"
@@ -1044,7 +1495,6 @@ function exportCSV() {
                     </button>
                   </div>
 
-                  <!-- A/B Side-by-Side Preview -->
                   <div v-if="abMode && currentVariants.length > 1" class="dash-ab-grid">
                     <div v-for="(v, vi) in currentVariants.slice(0, 2)" :key="vi"
                       :class="['dash-ab-card', activeVariant === vi && 'selected']"
@@ -1058,26 +1508,23 @@ function exportCSV() {
                     </div>
                   </div>
 
-                  <!-- Editable caption -->
                   <div class="dash-detail-caption-wrap">
                     <div v-if="editingCaption !== null" class="dash-edit-area">
                       <textarea v-model="editingCaption" class="dash-edit-textarea" rows="4"></textarea>
                       <div class="dash-edit-actions">
-                        <button @click="saveEdit(`${selectedDay.date}-${selectedDay.month}`)" class="dash-edit-save">Save</button>
+                        <button @click="saveEdit(selectedDayKey)" class="dash-edit-save">Save</button>
                         <button @click="cancelEdit" class="dash-edit-cancel">Cancel</button>
                       </div>
                     </div>
-                    <div v-else class="dash-detail-caption" @click="startEdit(captionEdits[`${selectedDay.date}-${selectedDay.month}`] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform), `${selectedDay.date}-${selectedDay.month}`)">
-                      {{ captionEdits[`${selectedDay.date}-${selectedDay.month}`] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform) }}
+                    <div v-else class="dash-detail-caption" @click="startEdit(captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform), selectedDayKey)">
+                      {{ captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform) }}
                       <span class="dash-edit-hint">tap to edit</span>
                     </div>
-                    <!-- Reset to original -->
-                    <button v-if="captionEdits[`${selectedDay.date}-${selectedDay.month}`]" class="dash-reset-edit" @click="resetEdit(`${selectedDay.date}-${selectedDay.month}`)">
+                    <button v-if="captionEdits[selectedDayKey]" class="dash-reset-edit" @click="resetEdit(selectedDayKey)">
                       ↩ Reset to original
                     </button>
                   </div>
 
-                  <!-- Character counter -->
                   <div v-if="captionCharCount" class="dash-char-counter">
                     <div class="dash-char-bar">
                       <div class="dash-char-fill" :class="{ warn: captionCharCount.percent > 80, over: captionCharCount.percent > 95 }" :style="{ width: Math.min(captionCharCount.percent, 100) + '%' }"></div>
@@ -1088,152 +1535,107 @@ function exportCSV() {
                   </div>
                 </div>
 
-                <!-- Post mockup preview -->
-                <div class="dash-detail-section">
-                  <span class="dash-detail-label">📱 Post Preview</span>
-                  <div class="dash-mockup">
-                    <div class="dash-mockup-phone">
-                      <div class="dash-mockup-header">
-                        <div class="dash-mockup-avatar">{{ profile.businessName?.[0] || '🐾' }}</div>
-                        <span class="dash-mockup-name">{{ profile.businessName || 'Your Business' }}</span>
-                      </div>
-                      <div class="dash-mockup-image">
-                        <img :src="getPhoto(selectedDay.caption, selectedDay.date)" :alt="selectedDay.caption?.imageIdea" loading="lazy" />
-                      </div>
-                      <div class="dash-mockup-caption">
-                        <span class="dash-mockup-caption-name">{{ profile.businessName?.toLowerCase().replace(/\s+/g, '') || 'yourbusiness' }}</span>
-                        {{ (captionEdits[`${selectedDay.date}-${selectedDay.month}`] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)).substring(0, 120) }}{{ (captionEdits[`${selectedDay.date}-${selectedDay.month}`] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)).length > 120 ? '...' : '' }}
+                <div class="dash-step1-actions">
+                  <button @click="copyCaption(currentVariants[activeVariant] || selectedDay.caption, detailPlatform, 'detail')"
+                    :class="['dash-action-pill', copiedId === 'detail' && 'copied']">
+                    {{ copiedId === 'detail' ? '✓ Copied' : '📋 Copy' }}
+                  </button>
+                  <button @click="showEnhance = !showEnhance" :class="['dash-action-pill', 'enhance', showEnhance && 'active']">✨ Enhance</button>
+                  <button @click="showIdeas = !showIdeas" :class="['dash-action-pill', 'ideas', showIdeas && 'active']">💡 Ideas</button>
+                </div>
+
+                <div v-show="showEnhance" class="dash-step-section">
+                  <div class="dash-step-header">✨ Enhance Your Caption</div>
+                  <div class="dash-hooks-section">
+                    <span class="dash-hooks-title">🪝 Hook It</span>
+                    <div class="dash-hooks-row">
+                      <button v-for="h in hookFrameworks" :key="h.id"
+                        @click="selectedHook = selectedHook === h.id ? null : h.id"
+                        :class="['dash-hook-chip', selectedHook === h.id && 'active']">
+                        {{ h.icon }} {{ h.name }}
+                      </button>
+                    </div>
+                    <div v-if="selectedHook && hookedText" class="dash-hooked-preview">
+                      <p class="dash-hooked-text">{{ hookedText }}</p>
+                      <div class="dash-hooked-actions">
+                        <button @click="copyCaption({ text: hookedText }, detailPlatform, 'hooked')" :class="['dash-hook-copy-btn', copiedId === 'hooked' && 'copied']">
+                          {{ copiedId === 'hooked' ? '✓ Copied' : '📋 Copy' }}
+                        </button>
+                        <button @click="hookOverrideText = hookedText" class="dash-hook-visual-btn">🎨 Use in Visual</button>
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <!-- Hashtags -->
-                <div class="dash-detail-section">
-                  <span class="dash-detail-label">Hashtags</span>
-                  <div class="dash-detail-tags">
-                    <span v-for="tag in getHashtags(selectedDay.caption, detailPlatform).split(' ')" :key="tag" class="dash-tag">{{ tag }}</span>
-                  </div>
-                </div>
-
-                <!-- Show More toggle -->
-                <button class="dash-detail-toggle" @click="showDetailExtras = !showDetailExtras">
-                  {{ showDetailExtras ? '▲ Show less' : '▼ More tips & ideas' }}
-                </button>
-
-                <!-- CTA -->
-                <div v-show="showDetailExtras" class="dash-detail-section">
-                  <span class="dash-detail-label">📣 Call to Action</span>
-                  <div class="dash-cta-box">
-                    <p class="dash-cta-text">{{ getCTA(selectedDay.caption?.category, selectedDay.date) }}</p>
-                    <div class="dash-cta-alts">
-                      <span v-for="(alt, ai) in [getCTA(selectedDay.caption?.category, 1), getCTA(selectedDay.caption?.category, 2)]" :key="ai"
-                        class="dash-cta-chip">{{ alt }}</span>
+                  <div class="dash-detail-section">
+                    <span class="dash-detail-label"># Hashtags</span>
+                    <div class="dash-detail-tags">
+                      <span v-for="tag in getHashtags(selectedDay.caption, detailPlatform).split(' ')" :key="tag" class="dash-tag">{{ tag }}</span>
                     </div>
                   </div>
-                </div>
-
-                <!-- Engagement Hook -->
-                <div v-if="showDetailExtras && selectedDay.caption?.engagementHook" class="dash-detail-section">
-                  <span class="dash-detail-label">🔥 Engagement Boost</span>
-                  <div class="dash-engage-box">
-                    <div class="dash-engage-type-row">
-                      <span :class="['dash-engage-type-badge', `dash-engage-${selectedDay.caption.engagementHook.type}`]">
-                        {{ selectedDay.caption.engagementHook.type === 'comment' ? '💬 Comment Driver' : selectedDay.caption.engagementHook.type === 'save' ? '🔖 Save Trigger' : '📤 Share Prompt' }}
+                  <div class="dash-detail-section">
+                    <span class="dash-detail-label">📣 Call to Action</span>
+                    <div class="dash-cta-chips">
+                      <span v-for="(cta, ci) in [getCTA(selectedDay.caption?.category, 0), getCTA(selectedDay.caption?.category, 1), getCTA(selectedDay.caption?.category, 2)]" :key="ci"
+                        class="dash-cta-chip" @click="startEdit((captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)) + '\n\n' + cta, selectedDayKey)">
+                        {{ cta }}
                       </span>
-                      <span v-if="selectedDay.caption.engagementHook.saveable" class="dash-engage-saveable">🔖 Saveable content</span>
                     </div>
-                    <p class="dash-engage-prompt">{{ selectedDay.caption.engagementHook.prompt }}</p>
-                    <p v-if="selectedDay.caption.engagementHook.saveReason" class="dash-engage-save-reason">
-                      Why people save: <strong>{{ selectedDay.caption.engagementHook.saveReason }}</strong>
-                    </p>
-                    <div class="dash-engage-tips">
-                      <p class="dash-engage-tips-label">Quick tips:</p>
-                      <ul class="dash-engage-tips-list">
-                        <li v-if="selectedDay.caption.engagementHook.type === 'comment'">Add this as the last line of your caption</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'comment'">Reply to every comment within 1 hour</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'comment'">Ask a follow-up question in your reply</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'save'">Put the most valuable info in carousel slides</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'save'">Use "Save this for later" in caption + stories</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'save'">Saves boost reach more than likes do</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'share'">Make it easy to tag — use "send to a friend"</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'share'">Shares multiply your reach to new audiences</li>
-                        <li v-if="selectedDay.caption.engagementHook.type === 'share'">Add to stories with a "share this" sticker</li>
-                      </ul>
+                  </div>
+                  <div v-if="selectedDay.caption?.engagementHook" class="dash-detail-section">
+                    <span class="dash-detail-label">🔥 Engagement</span>
+                    <div class="dash-engage-compact">
+                      <span :class="['dash-engage-type-badge', `dash-engage-${selectedDay.caption.engagementHook.type}`]">
+                        {{ selectedDay.caption.engagementHook.type === 'comment' ? '💬 Comment' : selectedDay.caption.engagementHook.type === 'save' ? '🔖 Save' : '📤 Share' }}
+                      </span>
+                      <p class="dash-engage-prompt">{{ selectedDay.caption.engagementHook.prompt }}</p>
                     </div>
                   </div>
                 </div>
 
-                <!-- SEO Keywords -->
-                <div v-show="showDetailExtras" class="dash-detail-section">
-                  <span class="dash-detail-label">🔍 SEO Keywords</span>
-                  <div class="dash-seo-box">
-                    <div class="dash-seo-group">
-                      <span class="dash-seo-label">Primary</span>
-                      <div class="dash-seo-tags">
-                        <span v-for="kw in getSEOKeywords(profile?.businessType).primary" :key="kw" class="dash-seo-tag primary">{{ kw }}</span>
-                      </div>
+                <div v-show="showIdeas" class="dash-step-section">
+                  <div class="dash-step-header">💡 Ideas & Inspiration</div>
+                  <div class="dash-detail-section">
+                    <span class="dash-detail-label">📷 Photo Ideas</span>
+                    <div class="dash-detail-photo-gallery">
+                      <img v-for="(photo, pi) in [getPhoto(selectedDay.caption, 0), getCategoryPhoto(selectedDay.caption?.category, 1), getCategoryPhoto(selectedDay.caption?.category, 2)]" :key="pi"
+                        :src="photo" :alt="selectedDay.caption?.imageIdea" class="dash-detail-gallery-img" loading="lazy" />
                     </div>
-                    <div class="dash-seo-group">
-                      <span class="dash-seo-label">Related</span>
-                      <div class="dash-seo-tags">
-                        <span v-for="kw in getSEOKeywords(profile?.businessType).secondary" :key="kw" class="dash-seo-tag secondary">{{ kw }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Image ideas -->
-                <div v-show="showDetailExtras" class="dash-detail-section">
-                  <span class="dash-detail-label">📷 Photo & Visual Ideas</span>
-                  <div class="dash-detail-photo-gallery">
-                    <img v-for="(photo, pi) in [getPhoto(selectedDay.caption, 0), getCategoryPhoto(selectedDay.caption?.category, 1), getCategoryPhoto(selectedDay.caption?.category, 2)]" :key="pi"
-                      :src="photo" :alt="selectedDay.caption?.imageIdea" class="dash-detail-gallery-img" loading="lazy" />
-                  </div>
-                  <div class="dash-detail-images">
                     <p class="dash-detail-image-main">{{ selectedDay.caption?.imageIdea }}</p>
-                    <div class="dash-detail-image-chips">
-                      <span v-for="idea in getImageSuggestions(selectedDay.caption?.category)" :key="idea" class="dash-image-chip">{{ idea }}</span>
-                    </div>
                   </div>
-                </div>
-
-                <!-- Video idea (TikTok-focused) -->
-                <div v-if="showDetailExtras && selectedDay.caption?.videoIdea" class="dash-detail-section">
-                  <span class="dash-detail-label">🎬 Video Idea</span>
-                  <div class="dash-video-box">
-                    <p class="dash-video-text">{{ selectedDay.caption.videoIdea }}</p>
-                    <div class="dash-video-badges">
-                      <span class="dash-video-badge">🎵 TikTok</span>
-                      <span class="dash-video-badge">📹 Reels</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Trending sounds -->
-                <div v-show="showDetailExtras" class="dash-detail-section">
-                  <span class="dash-detail-label">🎵 Trending Sounds</span>
-                  <div class="dash-detail-sounds">
-                    <div v-for="sound in getTrendingSounds(selectedDay.caption?.category, detailPlatform)" :key="sound.name" class="dash-sound-item">
-                      <div class="dash-sound-info">
-                        <span class="dash-sound-name">{{ sound.name }}</span>
-                        <span class="dash-sound-tip">{{ sound.tip }}</span>
-                      </div>
-                      <div class="dash-sound-platforms">
-                        <span v-for="p in sound.platforms" :key="p" class="dash-sound-platform">{{ platformFormats[p]?.emoji }}</span>
+                  <div v-if="selectedDay.caption?.videoIdea" class="dash-detail-section">
+                    <span class="dash-detail-label">🎬 Video Idea</span>
+                    <div class="dash-video-box">
+                      <p class="dash-video-text">{{ selectedDay.caption.videoIdea }}</p>
+                      <div class="dash-video-badges">
+                        <span class="dash-video-badge">🎵 TikTok</span>
+                        <span class="dash-video-badge">📹 Reels</span>
                       </div>
                     </div>
-                    <p v-if="getTrendingSounds(selectedDay.caption?.category, detailPlatform).length === 0" class="dash-sound-none">No trending sounds for this category yet</p>
+                  </div>
+                  <div class="dash-detail-section">
+                    <span class="dash-detail-label">🎵 Trending Sounds</span>
+                    <div class="dash-detail-sounds">
+                      <div v-for="sound in getTrendingSounds(selectedDay.caption?.category, detailPlatform)" :key="sound.name" class="dash-sound-item">
+                        <div class="dash-sound-info">
+                          <span class="dash-sound-name">{{ sound.name }}</span>
+                          <span class="dash-sound-tip">{{ sound.tip }}</span>
+                        </div>
+                      </div>
+                      <p v-if="getTrendingSounds(selectedDay.caption?.category, detailPlatform).length === 0" class="dash-sound-none">No trending sounds for this category yet</p>
+                    </div>
+                  </div>
+                  <div class="dash-detail-section">
+                    <span class="dash-detail-label">🔍 SEO Keywords</span>
+                    <div class="dash-seo-tags">
+                      <span v-for="kw in getSEOKeywords(profile?.businessType).primary" :key="kw" class="dash-seo-tag primary">{{ kw }}</span>
+                      <span v-for="kw in getSEOKeywords(profile?.businessType).secondary" :key="kw" class="dash-seo-tag secondary">{{ kw }}</span>
+                    </div>
+                  </div>
+                  <div class="dash-detail-tip">
+                    <span class="dash-detail-tip-label">💡 Tip</span>
+                    <p>{{ selectedDay.theme?.suggestion }}</p>
                   </div>
                 </div>
 
-                <!-- Theme tip -->
-                <div v-show="showDetailExtras" class="dash-detail-tip">
-                  <span class="dash-detail-tip-label">💡 Content Tip</span>
-                  <p>{{ selectedDay.theme?.suggestion }}</p>
-                </div>
-
-                <!-- Copy button -->
                 <div class="dash-action-btns">
                   <button @click="copyCaption(currentVariants[activeVariant] || selectedDay.caption, detailPlatform, 'detail')"
                     :class="['dash-copy-btn', copiedId === 'detail' && 'copied']">
@@ -1249,10 +1651,19 @@ function exportCSV() {
                   </button>
                 </div>
                 <p v-if="postingStatus === 'error' && postingError" class="dash-post-error">{{ postingError }}</p>
+
+                <VisualCreator
+                  v-if="selectedDay?.caption"
+                  :caption="selectedDay.caption"
+                  :profile="profile"
+                  :brand-voice="brandVoice"
+                  :is-pro="isProUser"
+                  :override-text="hookOverrideText"
+                  @upgrade="proGateFeature = 'AI Images'; showProGate = true"
+                />
               </div>
             </div>
           </div>
-        </Transition>
 
         <p v-if="!selectedDay" class="dash-hint">Tap any day to see the full caption, hashtags, and photo ideas</p>
       </div>
@@ -1297,6 +1708,42 @@ function exportCSV() {
       </div>
 
       <!-- ===== BRAND VOICE SETTINGS (Pro) ===== -->
+      <!-- ===== STATS TAB ===== -->
+      <div v-if="activeTab === 'stats'" class="dash-stats-wrap">
+        <h2 class="dash-stats-title">Your Stats</h2>
+        <div class="dash-stats-grid">
+          <div class="dash-stat-card">
+            <span class="dash-stat-number">{{ fullStats.created }}</span>
+            <span class="dash-stat-label">Captions Created</span>
+          </div>
+          <div class="dash-stat-card">
+            <span class="dash-stat-number">{{ fullStats.posted }}</span>
+            <span class="dash-stat-label">Posts Published</span>
+          </div>
+          <div class="dash-stat-card">
+            <span class="dash-stat-number">{{ fullStats.edited }}</span>
+            <span class="dash-stat-label">Captions Edited</span>
+          </div>
+          <div class="dash-stat-card dash-stat-streak">
+            <span class="dash-stat-number">{{ fullStats.streak }}</span>
+            <span class="dash-stat-label">Day Streak 🔥</span>
+          </div>
+        </div>
+        <div v-if="Object.keys(fullStats.categories).length" class="dash-stats-mix">
+          <h3 class="dash-stats-mix-title">Content Mix</h3>
+          <div class="dash-stats-bars">
+            <div v-for="(count, cat) in fullStats.categories" :key="cat" class="dash-stats-bar-row">
+              <span class="dash-stats-bar-label">{{ cat }}</span>
+              <div class="dash-stats-bar-track">
+                <div class="dash-stats-bar-fill" :style="{ width: (count / fullStats.created * 100) + '%' }"></div>
+              </div>
+              <span class="dash-stats-bar-count">{{ count }}</span>
+            </div>
+          </div>
+        </div>
+        <p v-else class="dash-stats-empty">Generate some captions to see your content mix breakdown here.</p>
+      </div>
+
       <div v-if="activeTab === 'voice'" class="dash-voice-wrap">
         <div class="dash-voice-header">
           <div>
@@ -1381,8 +1828,8 @@ function exportCSV() {
           <div class="dash-voice-tone-grid">
             <button
               v-for="t in toneOptions" :key="t.id"
-              @click="brandVoice.tone = t.id"
-              :class="['dash-voice-tone-card', brandVoice.tone === t.id && 'active']"
+              @click="toggleBrandTone(t.id)"
+              :class="['dash-voice-tone-card', brandVoice.tone.includes(t.id) && 'active']"
             >
               <span class="dash-voice-tone-icon">{{ t.icon }}</span>
               <span class="dash-voice-tone-label">{{ t.label }}</span>
@@ -1527,7 +1974,7 @@ function exportCSV() {
             class="dash-img-url-input" @keyup.enter="postToInstagram" />
           <p class="dash-img-url-hint">Tip: Use a photo from Unsplash, your website, or Google Drive (make it public first)</p>
           <div class="dash-img-preview" v-if="imageUrlInput">
-            <img :src="imageUrlInput" alt="Preview" @error="$event.target.style.display='none'" />
+            <img :src="imageUrlInput" alt="Preview" @error="$event.target.parentElement.style.background='linear-gradient(135deg, #fef3c7, #fed7aa)'; $event.target.style.display='none'" />
           </div>
           <button @click="postToInstagram" class="dash-pro-unlock" :disabled="!imageUrlInput">
             📤 Post Now
@@ -1542,8 +1989,8 @@ function exportCSV() {
         <div class="dash-pro-modal">
           <button class="dash-pro-close" @click="showProGate = false">&times;</button>
           <div class="dash-pro-icon">🔒</div>
-          <h3 class="dash-pro-title">Brand Voice is a Pro feature</h3>
-          <p class="dash-pro-desc">Customize your tone, humor, keywords, and how every caption sounds — so your content always feels like <em>you</em>.</p>
+          <h3 class="dash-pro-title">{{ proGateFeature }} is a Pro feature</h3>
+          <p class="dash-pro-desc">Unlock {{ proGateFeature }} and more — customize your tone, post directly, and make every caption sound like <em>you</em>.</p>
           <ul class="dash-pro-features">
             <li>Fine-tune tone, humor & formality</li>
             <li>Add brand keywords & words to avoid</li>
@@ -1690,6 +2137,18 @@ function exportCSV() {
   font-size: 11px; color: var(--text-secondary); margin: 6px 0 0 0; text-align: center;
 }
 
+.dash-restore-section { padding: 12px 16px; border-top: 1px solid var(--border); }
+.dash-restore-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px; }
+.dash-restore-row { display: flex; gap: 6px; }
+.dash-restore-input { flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; background: var(--card); color: var(--text); min-width: 0; }
+.dash-restore-input:focus { outline: none; border-color: var(--amber); }
+.dash-restore-btn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; color: var(--text-secondary); }
+.dash-restore-btn:hover { border-color: var(--amber); color: var(--amber); }
+.dash-restore-btn.restore { background: var(--amber-light); color: var(--amber); border-color: var(--amber); }
+.dash-restore-btn.restore:hover { background: var(--amber); color: #fff; }
+.dash-restore-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dash-restore-msg { font-size: 11px; margin-top: 6px; color: #059669; }
+.dash-restore-msg.error { color: #dc2626; }
 .dash-profile-reset {
   width: 100%; padding: 10px; border-radius: 10px; border: none;
   background: var(--hover); color: var(--amber); font-weight: 600;
@@ -1702,7 +2161,7 @@ function exportCSV() {
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-8px) scale(0.97); }
 
 /* ===== MAIN ===== */
-.dash-main { padding-top: 56px; min-height: calc(100vh - 40px); }
+.dash-main { padding-top: 56px; min-height: calc(100vh - 40px); overflow-x: hidden; }
 
 /* ===== WELCOME ===== */
 .dash-welcome { background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); padding: 0 28px; }
@@ -1800,8 +2259,8 @@ function exportCSV() {
 /* ===== CALENDAR ===== */
 .dash-calendar-wrap { max-width: 1200px; margin: 0 auto; padding: 28px 28px 48px; }
 .dash-cal-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
-.dash-month-nav { display: flex; align-items: center; gap: 12px; }
-.dash-month-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); min-width: 200px; text-align: center; }
+.dash-month-nav { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dash-month-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); min-width: 200px; text-align: center; white-space: nowrap; }
 .dash-month-btn {
   width: 36px; height: 36px; border-radius: 50%; border: none;
   background: var(--hover); cursor: pointer; color: var(--text-secondary);
@@ -1843,8 +2302,8 @@ function exportCSV() {
   background: var(--bg-card); border-radius: var(--radius); padding: 14px;
   border: 1px solid var(--border);
   cursor: pointer; transition: all 0.2s ease;
-  display: flex; flex-direction: column; gap: 8px; min-height: 200px;
-  overflow: hidden;
+  display: flex; flex-direction: column; gap: 6px; min-height: 120px;
+  overflow: hidden; word-break: break-word; overflow-wrap: break-word; min-width: 0;
 }
 .dash-week-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 .dash-week-card.today { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), var(--shadow-sm); }
@@ -1853,10 +2312,18 @@ function exportCSV() {
 .dash-week-card.posted .dash-week-card-img { opacity: 0.7; }
 .dash-week-card.rest-day { opacity: 0.4; background: transparent; border: 1px dashed var(--border); cursor: default; }
 .dash-week-card.rest-day:hover { transform: none; box-shadow: none; }
-.dash-week-card-rest { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 0; gap: 6px; }
-.dash-rest-icon { font-size: 24px; opacity: 0.7; }
-.dash-rest-label { font-size: 12px; font-weight: 600; color: var(--text-tertiary); }
-.dash-rest-sub { font-size: 10px; color: var(--text-tertiary); opacity: 0.7; }
+.dash-show-full-week { display: block; margin: 12px auto 0; padding: 8px 20px; border-radius: 20px; border: 1px solid var(--border); background: var(--card-bg); font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.dash-show-full-week:hover { border-color: var(--amber); color: var(--amber); }
+.dash-cal-cell.hidden-day { visibility: hidden; pointer-events: none; }
+.dash-week-card.empty-day { border: 2px dashed var(--amber); background: var(--amber-light); cursor: pointer; opacity: 0.85; }
+.dash-week-card.empty-day:hover { opacity: 1; border-color: var(--amber); transform: translateY(-2px); }
+.dash-week-card-rest { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 0; gap: 4px; flex: 1; }
+.dash-week-card-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 6px; gap: 6px; flex: 1; }
+.dash-rest-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); opacity: 0.6; }
+.dash-generate-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--amber); background: var(--amber-light); color: var(--amber); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.dash-generate-btn:hover { background: var(--amber); color: #fff; }
+.dash-remove-btn { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 14px; opacity: 0.5; }
+.dash-remove-btn:hover { opacity: 1; background: #fee2e2; border-color: #fca5a5; }
 .dash-week-card.selected { border-color: var(--amber); background: var(--amber-light); box-shadow: 0 0 0 1px var(--amber); }
 
 .dash-week-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 4px; }
@@ -1874,30 +2341,28 @@ function exportCSV() {
 }
 
 .dash-week-card-img {
-  width: 100%; height: 90px; border-radius: var(--radius-sm); overflow: hidden; margin: 0;
+  width: 100%; height: 70px; border-radius: var(--radius-sm); overflow: hidden; margin: 0; flex-shrink: 0;
+  background: linear-gradient(135deg, #fef3c7, #fed7aa); display: flex; align-items: center; justify-content: center;
 }
 .dash-week-card-img img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  width: 100%; height: 100%; object-fit: cover; display: block; word-break: break-all; font-size: 10px; color: var(--text-tertiary);
 }
 .dash-week-card-caption {
-  font-size: 12px; line-height: 1.5; color: var(--text-secondary);
-  flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; margin: 0;
+  font-size: 12px; line-height: 1.4; color: var(--text-secondary);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin: 0;
 }
-.dash-week-card-footer { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--border); padding-top: 8px; margin-top: auto; }
 .dash-week-card-cat {
-  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--amber-dark); background: var(--amber-light); padding: 3px 8px; border-radius: var(--radius-pill); align-self: flex-start;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 3px 8px; border-radius: var(--radius-pill); align-self: flex-start; margin-top: auto;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.dash-week-card-photo { font-size: 10px; color: var(--text-tertiary); line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.dash-week-card-sound { font-size: 10px; color: var(--purple); font-weight: 500; line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-/* Week card right side header */
-.dash-week-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+/* Week card posted badge */
 
 /* Posted badge */
 .dash-posted-badge {
-  font-size: 10px; font-weight: 600; color: #fff; background: #22c55e;
-  padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 700; color: #22c55e; background: rgba(34,197,94,0.1);
+  width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
 }
 /* Time badge */
 .dash-time-badge {
@@ -1936,7 +2401,8 @@ function exportCSV() {
 }
 .dash-cal-cell.has-content { cursor: pointer; }
 .dash-cal-cell.has-content:hover { background: var(--hover); transform: scale(1.08); box-shadow: 0 4px 12px rgba(245,158,11,0.15); }
-.dash-cal-cell.past { opacity: 0.35; }
+.dash-cal-cell.past { opacity: 0.5; }
+.dash-cal-cell.past.has-content { opacity: 0.8; }
 .dash-cal-cell.selected { background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(249,115,22,0.08)); box-shadow: 0 0 0 2px var(--amber); }
 .dash-cal-date {
   font-size: 15px; font-weight: 500; color: var(--text);
@@ -1946,12 +2412,15 @@ function exportCSV() {
 .dash-cal-cell.has-content:hover .dash-cal-date { background: rgba(245,158,11,0.12); }
 .dash-cal-date.today-badge { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; font-weight: 700; box-shadow: 0 2px 8px rgba(245,158,11,0.35); }
 .dash-cal-cell.selected .dash-cal-date:not(.today-badge) { background: var(--amber); color: #fff; font-weight: 600; }
+.dash-cal-cell.empty-posting { border: 1px dashed rgba(245, 158, 11, 0.3); opacity: 0.5; cursor: pointer; }
+.dash-cal-cell.empty-posting:hover { opacity: 1; background: var(--amber-light); }
 .dash-cal-dots { display: flex; gap: 3px; align-items: center; }
-.dash-cal-dot { width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #f97316); }
+.dash-cal-dot { width: 6px; height: 6px; border-radius: 50%; }
 .dash-cal-holiday-dot { width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(135deg, #ef4444, #f97316); }
 
 /* ===== SELECTED DAY DETAIL ===== */
 .dash-detail { margin-top: 28px; }
+.dash-detail--inline { width: 100%; margin-top: 0; }
 .dash-detail-card { background: var(--bg-card); border-radius: 20px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-lg); }
 .dash-detail-header { background: linear-gradient(135deg, #f59e0b, #f97316); padding: 24px 28px; display: flex; align-items: flex-start; justify-content: space-between; }
 .dash-detail-date { font-size: 13px; color: rgba(255,255,255,0.7); font-weight: 500; }
@@ -2185,6 +2654,7 @@ function exportCSV() {
 .dash-root.dark .dash-engage-tips-list li { color: #fde68a; }
 
 /* Week card engagement badge */
+/* Legacy engage badges */
 .dash-week-card-engage {
   font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 100px;
   text-transform: capitalize; display: inline-flex; align-items: center; gap: 3px;
@@ -2231,6 +2701,64 @@ function exportCSV() {
 .dash-copy-btn.outline.copied { background: var(--green); color: #fff; border-color: var(--green); }
 
 /* Action buttons row */
+/* Hook Frameworks */
+.dash-hooks-section { margin: 16px 0; }
+.dash-hooks-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.dash-hooks-row { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; scrollbar-width: none; -ms-overflow-style: none; }
+.dash-hooks-row::-webkit-scrollbar { display: none; }
+.dash-hook-chip { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--card-bg); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; color: var(--text-secondary); transition: all .15s; }
+.dash-hook-chip.active { background: var(--amber); color: #fff; border-color: var(--amber); }
+.dash-hook-chip:hover { border-color: var(--amber); }
+.dash-hooked-preview { background: var(--bg); border-radius: 12px; padding: 14px; margin-top: 10px; border: 1px solid var(--border); }
+.dash-hooked-text { font-size: 14px; color: var(--text-primary); line-height: 1.6; margin: 0 0 10px; white-space: pre-line; }
+.dash-hooked-actions { display: flex; gap: 8px; }
+.dash-hook-copy-btn { padding: 6px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-secondary); }
+.dash-hook-copy-btn.copied { background: #10b981; color: #fff; border-color: #10b981; }
+.dash-hook-visual-btn { padding: 6px 16px; border-radius: 8px; border: 1px solid var(--amber); background: var(--amber-light); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--amber-dark, #92400e); }
+
+/* Step 1 Action Row */
+.dash-step1-actions {
+  display: flex; gap: 8px; padding: 0 28px 8px; flex-wrap: wrap;
+}
+.dash-action-pill {
+  padding: 10px 18px; border-radius: 100px; border: 1.5px solid var(--border);
+  background: var(--bg-card); font-size: 13px; font-weight: 600; cursor: pointer;
+  color: var(--text-secondary); transition: all .15s; white-space: nowrap;
+}
+.dash-action-pill:hover { border-color: var(--amber); color: var(--amber); }
+.dash-action-pill.copied { background: #10b981; color: #fff; border-color: #10b981; }
+.dash-action-pill.enhance.active { background: var(--amber-light); border-color: var(--amber); color: var(--amber-dark, #92400e); }
+.dash-action-pill.ideas.active { background: #ede9fe; border-color: #7c3aed; color: #7c3aed; }
+
+/* Stepped Sections */
+.dash-step-section {
+  margin: 0 28px 16px; padding: 16px; border-radius: 14px;
+  background: var(--bg); border: 1px solid var(--border);
+}
+.dash-step-header {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+
+/* Smart Empty State */
+.dash-empty-cat { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+.dash-empty-tip { font-size: 11px; color: var(--text-tertiary); line-height: 1.4; text-align: center; max-width: 140px; }
+.dash-empty-btn { font-size: 12px; font-weight: 700; color: var(--amber); margin-top: 2px; }
+
+/* Format pill in detail */
+.dash-format-pill {
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  background: var(--bg); padding: 3px 10px; border-radius: 100px; border: 1px solid var(--border);
+}
+
+/* CTA chips row */
+.dash-cta-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.dash-cta-chip { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); font-size: 12px; cursor: pointer; color: var(--text-secondary); transition: all .15s; }
+.dash-cta-chip:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-light); }
+
+/* Compact engage */
+.dash-engage-compact { display: flex; flex-direction: column; gap: 6px; }
+
 .dash-action-btns { display: flex; gap: 8px; }
 .dash-action-btns .dash-copy-btn { flex: 1; }
 
@@ -2479,31 +3007,36 @@ function exportCSV() {
   .dash-tab { font-size: 12px; padding: 5px 10px; }
   .dash-welcome-inner { padding: 20px 0; }
   .dash-welcome-title { font-size: 18px; }
+  .dash-welcome-sub { font-size: 13px; }
   .dash-stat { padding: 0 14px; }
   .dash-stat-num { font-size: 22px; }
   .dash-platforms { padding: 10px 16px; }
   .dash-platform-pill { padding: 7px 14px; font-size: 12px; }
-  .dash-calendar-wrap { padding: 16px 16px 32px; }
+  .dash-calendar-wrap { padding: 16px 16px 32px; overflow: hidden; }
   .dash-cal-toolbar { gap: 8px; }
-  .dash-month-title { font-size: 18px; min-width: 160px; }
+  .dash-month-nav { gap: 8px; }
+  .dash-month-title { font-size: 18px; min-width: auto; }
   .dash-cal-day-short { display: inline; }
   .dash-cal-day-full { display: none; }
   .dash-cal-date { font-size: 14px; width: 32px; height: 32px; }
   .dash-cal-dot { width: 4px; height: 4px; }
   .dash-week { grid-template-columns: repeat(2, 1fr); }
-  .dash-week-card { min-height: 160px; }
+  .dash-week-card { min-height: 100px; overflow: hidden; }
+  .dash-week-card-caption { word-break: break-word; overflow-wrap: break-word; }
+  .dash-week-card-img img { max-width: 100%; }
   .dash-voice-badge { font-size: 12px; padding: 6px 12px; }
-  .dash-detail-body { padding: 16px; }
-  .dash-detail-caption { font-size: 14px; padding: 14px; }
+  .dash-detail-body { padding: 16px; overflow: hidden; }
+  .dash-detail-caption { font-size: 14px; padding: 14px; word-break: break-word; overflow-wrap: break-word; }
   .dash-captions-wrap { padding: 16px 16px 32px; }
   .dash-caption-card { padding: 18px; }
   .dash-mockup-phone { width: 240px; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .dash-tab-group { gap: 0; }
   .dash-tab { padding: 5px 8px; font-size: 11px; }
   .dash-welcome-inner { flex-direction: column; align-items: flex-start; }
+  .dash-welcome-sub { font-size: 12px; }
   .dash-stats { margin-top: 4px; }
   .dash-stat { padding: 0 12px; }
   .dash-stat:first-child { padding-left: 0; }
@@ -2516,7 +3049,7 @@ function exportCSV() {
   .dash-cal-toolbar { flex-direction: column; align-items: stretch; }
   .dash-month-nav { justify-content: space-between; }
   .dash-view-toggle { justify-content: center; }
-  .dash-month-title { min-width: auto; font-size: 16px; }
+  .dash-month-title { font-size: 16px; min-width: auto; }
   .dash-voice-badge { font-size: 11px; }
   .dash-mockup-phone { width: 100%; }
   .dash-export-btn { padding: 6px 12px; font-size: 12px; }
@@ -2820,4 +3353,40 @@ function exportCSV() {
 }
 .dash-analyzer-dismiss:hover { border-color: #999; }
 .dark .dash-analyzer-dismiss { border-color: #444; color: #666; }
+
+/* ===== Stats Tab ===== */
+.dash-stats-wrap { max-width: 800px; margin: 0 auto; padding: 20px; }
+.dash-stats-title { font-size: 24px; font-weight: 800; margin: 0 0 20px; color: var(--text); }
+.dash-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 28px; }
+.dash-stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; text-align: center; }
+.dash-stat-number { display: block; font-size: 36px; font-weight: 800; color: var(--text); line-height: 1.2; }
+.dash-stat-label { display: block; font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.dash-stat-streak .dash-stat-number { color: #f59e0b; }
+.dash-stats-mix { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+.dash-stats-mix-title { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: var(--text); }
+.dash-stats-bars { display: flex; flex-direction: column; gap: 10px; }
+.dash-stats-bar-row { display: flex; align-items: center; gap: 10px; }
+.dash-stats-bar-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); min-width: 90px; text-transform: capitalize; }
+.dash-stats-bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.dash-stats-bar-fill { height: 100%; background: #f59e0b; border-radius: 4px; transition: width 0.3s; min-width: 4px; }
+.dash-stats-bar-count { font-size: 12px; font-weight: 600; color: var(--text); min-width: 24px; text-align: right; }
+.dash-stats-empty { color: var(--text-tertiary); font-size: 14px; text-align: center; padding: 40px 20px; }
+
+/* ===== Mobile Responsive ===== */
+@media (max-width: 640px) {
+  .dash-week { display: flex !important; flex-direction: column !important; gap: 8px !important; }
+  .dash-week-card { min-height: auto !important; padding: 12px !important; display: flex !important; flex-direction: row !important; align-items: center !important; gap: 12px !important; }
+  .dash-week-card img { width: 48px !important; height: 48px !important; border-radius: 8px !important; object-fit: cover; flex-shrink: 0; }
+  .dash-week-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 60px; }
+  .dash-week-caption { font-size: 12px !important; -webkit-line-clamp: 1 !important; flex: 1; }
+  .dash-month-grid { grid-template-columns: repeat(7, 1fr) !important; gap: 2px !important; }
+  .dash-month-cell { min-height: 40px !important; padding: 4px !important; font-size: 11px !important; }
+  .dash-month-caption { display: none !important; }
+  .dash-nav-inner { flex-wrap: wrap; gap: 8px; }
+  .dash-tab-group { gap: 2px; }
+  .dash-tab { font-size: 11px !important; padding: 6px 8px !important; }
+  .dash-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-detail-overlay { padding: 8px; }
+  .dash-detail-panel { max-height: 90vh; width: 100%; max-width: 100%; }
+}
 </style>
