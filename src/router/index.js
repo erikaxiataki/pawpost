@@ -18,22 +18,12 @@ const routes = [
         return
       }
 
-      // Check server-side auth
-      try {
-        const res = await fetch('/api/auth?action=me', { credentials: 'include' })
-        if (res.ok) {
-          next()
-          return
-        }
-      } catch {}
-
-      // Fallback: check if user has profile (onboarding not yet done)
+      // Check if user has done onboarding
       const profile = localStorage.getItem('pawpost_profile')
       if (!profile) {
         next('/onboarding')
       } else {
-        // User has done onboarding but not logged in — prompt login
-        next('/login')
+        next()
       }
     },
   },
