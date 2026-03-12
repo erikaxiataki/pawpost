@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { captionTemplates, platformFormats, weeklyThemes, imageSuggestions, trendingSounds, petHolidays, generateVariants, getCategoryPhoto, getCTA, getSEOKeywords, bestPostingTimes, getFormatRecommendation, hookFrameworks, categoryMeta, weeklyContentMix } from '../data/captions.js'
 import VisualCreator from '../components/VisualCreator.vue'
+import { scoreCaption, getHook, getHookStrength } from '../lib/captionScore.js'
 
 function getPhoto(caption, fallbackIndex) {
   return caption?.photo || getCategoryPhoto(caption?.category, fallbackIndex || 0)
@@ -531,6 +532,21 @@ const captionCharCount = computed(() => {
   const full = text + '\n\n' + hashtags
   const max = platformFormats[detailPlatform.value]?.maxLength || 2200
   return { current: full.length, max, percent: Math.round((full.length / max) * 100) }
+})
+
+// Caption quality score for selected day
+const captionQuality = computed(() => {
+  if (!selectedDay.value?.caption) return null
+  const dayKey = selectedDayKey.value
+  const text = captionEdits.value[dayKey] || formatForPlatform(currentVariants.value[activeVariant.value] || selectedDay.value.caption, detailPlatform.value)
+  return scoreCaption(text, detailPlatform.value)
+})
+
+const captionHook = computed(() => {
+  if (!selectedDay.value?.caption) return null
+  const dayKey = selectedDayKey.value
+  const text = captionEdits.value[dayKey] || formatForPlatform(currentVariants.value[activeVariant.value] || selectedDay.value.caption, detailPlatform.value)
+  return { text: getHook(text), strength: getHookStrength(text), rest: text.substring(getHook(text).length).replace(/^\n/, '') }
 })
 
 // Caption variants for selected day
@@ -1298,8 +1314,14 @@ function exportCSV() {
                           <button @click="cancelEdit" class="dash-edit-cancel">Cancel</button>
                         </div>
                       </div>
-                      <div v-else class="dash-detail-caption" @click="startEdit(captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform), selectedDayKey)">
-                        {{ captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform) }}
+                      <div v-else class="dash-detail-caption dash-detail-caption--hooked" @click="startEdit(captionEdits[selectedDayKey] || formatForPlatform(currentVariants[activeVariant] || selectedDay.caption, detailPlatform), selectedDayKey)">
+                        <div v-if="captionHook" class="dash-hook-highlight">
+                          <div class="dash-hook-line">
+                            <span class="dash-hook-text">{{ captionHook.text }}</span>
+                            <span class="dash-hook-strength" :style="{ background: captionHook.strength.color + '18', color: captionHook.strength.color }">{{ captionHook.strength.label }}</span>
+                          </div>
+                          <div v-if="captionHook.rest" class="dash-hook-rest">{{ captionHook.rest }}</div>
+                        </div>
                         <span class="dash-edit-hint">tap to edit</span>
                       </div>
                       <button v-if="captionEdits[selectedDayKey]" class="dash-reset-edit" @click="resetEdit(selectedDayKey)">
@@ -1314,6 +1336,32 @@ function exportCSV() {
                       <span :class="['dash-char-text', captionCharCount.percent > 95 && 'over']">
                         {{ captionCharCount.current.toLocaleString() }} / {{ captionCharCount.max.toLocaleString() }} chars
                       </span>
+                    </div>
+
+                    <!-- Caption Quality Score -->
+                    <div v-if="captionQuality" class="dash-quality-score">
+                      <div class="dash-quality-header">
+                        <span class="dash-quality-label">Quality Score</span>
+                        <span class="dash-quality-value" :style="{ color: captionQuality.color }">{{ captionQuality.score }}/100</span>
+                        <span class="dash-quality-badge" :style="{ background: captionQuality.color + '18', color: captionQuality.color }">{{ captionQuality.label }}</span>
+                      </div>
+                      <div class="dash-quality-bar">
+                        <div class="dash-quality-fill" :style="{ width: captionQuality.score + '%', background: captionQuality.color }"></div>
+                      </div>
+                      <div v-if="captionQuality.checks.length" class="dash-quality-checks">
+                        <div v-for="(c, ci) in captionQuality.checks" :key="ci" class="dash-quality-check-row">
+                          <span class="dash-quality-check-label">{{ c.label }}</span>
+                          <div class="dash-quality-check-bar-wrap">
+                            <div class="dash-quality-check-bar">
+                              <div class="dash-quality-check-fill" :style="{ width: Math.round((c.score / c.max) * 100) + '%', background: c.score / c.max >= 0.7 ? '#16a34a' : c.score / c.max >= 0.4 ? '#d97706' : '#ef4444' }"></div>
+                            </div>
+                          </div>
+                          <span class="dash-quality-check-pts">{{ c.score }}/{{ c.max }}</span>
+                        </div>
+                      </div>
+                      <div v-if="captionQuality.tips.length" class="dash-quality-tips">
+                        <p v-for="(tip, ti) in captionQuality.tips" :key="ti" class="dash-quality-tip">💡 {{ tip }}</p>
+                      </div>
                     </div>
                   </div>
 
@@ -3409,5 +3457,140 @@ function exportCSV() {
   .dash-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .dash-detail-overlay { padding: 8px; }
   .dash-detail-panel { max-height: 90vh; width: 100%; max-width: 100%; }
+}
+
+/* ===== CAPTION QUALITY SCORE ===== */
+.dash-quality-score {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--caption-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.dash-quality-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dash-quality-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.dash-quality-value {
+  font-size: 18px;
+  font-weight: 700;
+  margin-left: auto;
+}
+.dash-quality-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+.dash-quality-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.dash-quality-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease, background 0.3s ease;
+}
+.dash-quality-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.dash-quality-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-quality-check-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  width: 100px;
+  flex-shrink: 0;
+}
+.dash-quality-check-bar-wrap {
+  flex: 1;
+}
+.dash-quality-check-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.dash-quality-check-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.dash-quality-check-pts {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.dash-quality-tips {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.dash-quality-tip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+/* ===== HOOK HIGHLIGHTER ===== */
+.dash-detail-caption--hooked {
+  cursor: pointer;
+}
+.dash-hook-highlight {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash-hook-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(217, 119, 6, 0.08);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #d97706;
+}
+.dash-hook-text {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  flex: 1;
+}
+.dash-hook-strength {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.dash-hook-rest {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
 }
 </style>
