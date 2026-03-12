@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { captionTemplates, platformFormats, weeklyThemes, imageSuggestions, trendingSounds, petHolidays, generateVariants, getCategoryPhoto, getCTA, getSEOKeywords, bestPostingTimes, getFormatRecommendation, hookFrameworks, categoryMeta, weeklyContentMix } from '../data/captions.js'
 import VisualCreator from '../components/VisualCreator.vue'
+import CarouselGenerator from '../components/CarouselGenerator.vue'
 import { scoreCaption, getHook, getHookStrength } from '../lib/captionScore.js'
 
 function getPhoto(caption, fallbackIndex) {
@@ -30,6 +31,7 @@ const selectedHook = ref(null)
 const hookOverrideText = ref('')
 const showEnhance = ref(false)
 const showIdeas = ref(false)
+const showCarousel = ref(false)
 
 /* ---- Brand Voice (Pro Feature) ---- */
 const brandVoice = ref({
@@ -1372,6 +1374,7 @@ function exportCSV() {
                     </button>
                     <button @click="showEnhance = !showEnhance" :class="['dash-action-pill', 'enhance', showEnhance && 'active']">✨ Enhance</button>
                     <button @click="showIdeas = !showIdeas" :class="['dash-action-pill', 'ideas', showIdeas && 'active']">💡 Ideas</button>
+                    <button @click="showCarousel = !showCarousel" :class="['dash-action-pill', 'carousel', showCarousel && 'active']">🎠 Carousel</button>
                   </div>
 
                   <div v-show="showEnhance" class="dash-step-section">
@@ -1491,6 +1494,14 @@ function exportCSV() {
                     :is-premium="isPremiumUser"
                     :override-text="hookOverrideText"
                     @upgrade="proGateFeature = 'AI Images'; showProGate = true"
+                  />
+
+                  <CarouselGenerator
+                    v-if="showCarousel && selectedDay?.caption"
+                    :caption="selectedDay.caption"
+                    :profile="profile"
+                    :brand-voice="brandVoice"
+                    @close="showCarousel = false"
                   />
                 </div>
               </div>
@@ -1710,6 +1721,9 @@ function exportCSV() {
                     :class="['dash-copy-btn', copiedId === 'detail' && 'copied']">
                     {{ copiedId === 'detail' ? '✓ Copied to clipboard' : `Copy for ${platformFormats[detailPlatform]?.label}` }}
                   </button>
+                  <button @click="showCarousel = !showCarousel" :class="['dash-copy-btn', showCarousel && 'active']" style="background: var(--amber-light, #fffbeb); color: var(--amber-dark, #92400e); border-color: var(--amber, #f59e0b);">
+                    🎠 {{ showCarousel ? 'Hide Carousel' : 'Make Carousel' }}
+                  </button>
                   <button v-if="detailPlatform === 'instagram'"
                     @click="startPostToInstagram(currentVariants[activeVariant] || selectedDay.caption, detailPlatform)"
                     :class="['dash-post-btn', postingStatus === 'success' && 'posted', postingStatus === 'posting' && 'posting']"
@@ -1729,6 +1743,14 @@ function exportCSV() {
                   :is-pro="isProUser"
                   :override-text="hookOverrideText"
                   @upgrade="proGateFeature = 'AI Images'; showProGate = true"
+                />
+
+                <CarouselGenerator
+                  v-if="showCarousel && selectedDay?.caption"
+                  :caption="selectedDay.caption"
+                  :profile="profile"
+                  :brand-voice="brandVoice"
+                  @close="showCarousel = false"
                 />
               </div>
             </div>
@@ -2798,6 +2820,7 @@ function exportCSV() {
 .dash-action-pill.copied { background: #10b981; color: #fff; border-color: #10b981; }
 .dash-action-pill.enhance.active { background: var(--amber-light); border-color: var(--amber); color: var(--amber-dark, #92400e); }
 .dash-action-pill.ideas.active { background: #ede9fe; border-color: #7c3aed; color: #7c3aed; }
+.dash-action-pill.carousel.active { background: #fef3c7; border-color: #d97706; color: #92400e; }
 
 /* Stepped Sections */
 .dash-step-section {
