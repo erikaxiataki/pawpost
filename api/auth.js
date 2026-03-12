@@ -50,7 +50,7 @@ export default async function handler(req, res) {
 
     try {
       await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'PawPost <hello@pawpost.ca>',
+        from: process.env.RESEND_FROM_EMAIL || 'PawPost <onboarding@resend.dev>',
         to: cleanEmail,
         subject: 'Your PawPost Login Link',
         html: `
