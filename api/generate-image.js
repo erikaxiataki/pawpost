@@ -6,21 +6,21 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // Auth check
+  // Auth check (optional — free tier works without login)
   const user = await verifySession(req)
-  if (!user) return res.status(401).json({ error: 'Please log in to generate images.' })
-
-  // Usage check
-  const plan = user.plan || 'free'
+  const plan = user?.plan || 'free'
   const limits = getPlanLimits(plan)
-  const currentUsage = await getImageUsage(user.email)
 
-  if (currentUsage >= limits.images) {
-    return res.status(429).json({
-      error: `You've used all ${limits.images} AI images this month. Upgrade for more!`,
-      usage: currentUsage,
-      limit: limits.images,
-    })
+  // Server-side usage check only for logged-in users
+  if (user) {
+    const currentUsage = await getImageUsage(user.email)
+    if (currentUsage >= limits.images) {
+      return res.status(429).json({
+        error: `You've used all ${limits.images} AI images this month. Upgrade for more!`,
+        usage: currentUsage,
+        limit: limits.images,
+      })
+    }
   }
 
   const { prompt } = req.body
@@ -51,8 +51,7 @@ export default async function handler(req, res) {
         const parts = data.candidates?.[0]?.content?.parts || []
         const imagePart = parts.find(p => p.inlineData)
         if (imagePart) {
-          // Count usage only on successful generation
-          const newUsage = await incrementImageUsage(user.email)
+          const newUsage = user ? await incrementImageUsage(user.email) : null
           return res.status(200).json({
             image: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`,
             usage: newUsage,
@@ -103,8 +102,7 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'No image was generated. Try a different prompt.' })
     }
 
-    // Count usage only on successful generation
-    const newUsage = await incrementImageUsage(user.email)
+    const newUsage = user ? await incrementImageUsage(user.email) : null
     return res.status(200).json({
       image: `data:image/png;base64,${b64}`,
       usage: newUsage,

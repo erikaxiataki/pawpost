@@ -6,11 +6,13 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
+  // Auth optional — logged-in users use their email, otherwise use email from body
   const user = await verifySession(req)
-  if (!user) return res.status(401).json({ error: 'Not authenticated' })
+  const email = user?.email || req.body?.email
+  if (!email) return res.status(400).json({ error: 'Email is required' })
 
   const action = req.query.action
-  const key = `profiles/${user.email}.json`
+  const key = `profiles/${email.toLowerCase().trim()}.json`
 
   // GET profile: POST /api/profile?action=get
   if (action === 'get') {
