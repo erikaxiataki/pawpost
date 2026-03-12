@@ -7,8 +7,8 @@ import {
   clearSessionCookie,
   verifySession,
   setCorsHeaders,
-} from './lib/auth.js'
-import { getUser, saveUser, getImageUsage, getPlanLimits } from './lib/db.js'
+} from '../lib/auth.js'
+import { getUser, saveUser, getImageUsage, getPlanLimits } from '../lib/db.js'
 
 export default async function handler(req, res) {
   setCorsHeaders(res)

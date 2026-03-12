@@ -1,5 +1,5 @@
-import { verifySession, setCorsHeaders } from './lib/auth.js'
-import { getImageUsage, incrementImageUsage, getPlanLimits } from './lib/db.js'
+import { verifySession, setCorsHeaders } from '../lib/auth.js'
+import { getImageUsage, incrementImageUsage, getPlanLimits } from '../lib/db.js'
 
 export default async function handler(req, res) {
   setCorsHeaders(res)

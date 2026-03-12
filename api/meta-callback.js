@@ -1,6 +1,6 @@
 // Meta OAuth — Step 2: Exchange code for token, get IG Business Account
-import { verifySession } from './lib/auth.js'
-import { saveMetaToken } from './lib/db.js'
+import { verifySession } from '../lib/auth.js'
+import { saveMetaToken } from '../lib/db.js'
 
 export default async function handler(req, res) {
   try {
