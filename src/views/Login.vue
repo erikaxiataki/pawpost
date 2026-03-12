@@ -70,7 +70,7 @@ const verifyError = ref('')
 onMounted(async () => {
   // Check if user is already logged in
   try {
-    const res = await fetch('/api/auth/me', { credentials: 'include' })
+    const res = await fetch('/api/auth?action=me', { credentials: 'include' })
     if (res.ok) {
       router.replace('/dashboard')
       return
@@ -82,7 +82,7 @@ onMounted(async () => {
   if (token) {
     step.value = 'verifying'
     try {
-      const res = await fetch('/api/auth/verify', {
+      const res = await fetch('/api/auth?action=verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -107,7 +107,7 @@ async function sendLink() {
   sending.value = true
   error.value = ''
   try {
-    const res = await fetch('/api/auth/send-magic-link', {
+    const res = await fetch('/api/auth?action=send-magic-link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.value.trim() }),

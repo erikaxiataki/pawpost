@@ -277,7 +277,7 @@ onMounted(async () => {
   }
   // Load pro status from server (with localStorage fallback)
   try {
-    const authRes = await fetch('/api/auth/me', { credentials: 'include' })
+    const authRes = await fetch('/api/auth?action=me', { credentials: 'include' })
     if (authRes.ok) {
       const data = await authRes.json()
       authUser.value = data
@@ -821,7 +821,7 @@ async function saveProfileToCloud() {
   if (!email || !email.includes('@')) { restoreMsg.value = 'Enter a valid email'; restoreError.value = true; return }
   restoreLoading.value = true; restoreMsg.value = ''; restoreError.value = false
   try {
-    const res = await fetch('/api/save-profile', {
+    const res = await fetch('/api/profile?action=save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, profile: { ...profile.value, createdContent: createdContent.value, captionEdits: captionEdits.value } }),
     })
@@ -837,7 +837,7 @@ async function restoreProfileFromCloud() {
   if (!email || !email.includes('@')) { restoreMsg.value = 'Enter a valid email'; restoreError.value = true; return }
   restoreLoading.value = true; restoreMsg.value = ''; restoreError.value = false
   try {
-    const res = await fetch('/api/get-profile', {
+    const res = await fetch('/api/profile?action=get', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     })

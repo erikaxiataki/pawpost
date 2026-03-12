@@ -20,7 +20,7 @@ const routes = [
 
       // Check server-side auth
       try {
-        const res = await fetch('/api/auth/me', { credentials: 'include' })
+        const res = await fetch('/api/auth?action=me', { credentials: 'include' })
         if (res.ok) {
           next()
           return
