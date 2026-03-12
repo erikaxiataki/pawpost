@@ -177,7 +177,7 @@ const translations = {
     pricingAnchor2: ' hours/month',
     pricingAnchor3: ' on captions. That\'s ',
     pricingAnchor4: ' in lost time. PawPost Pro costs ',
-    pricingAnchor5: '$14',
+    pricingAnchor5: '$9',
     pricingAnchor6: '. Do the math.',
 
     /* Newsletter */
@@ -360,7 +360,7 @@ const translations = {
     pricingAnchor2: ' horas/mês',
     pricingAnchor3: ' em legendas. Isso é ',
     pricingAnchor4: ' em tempo perdido. PawPost Pro custa ',
-    pricingAnchor5: '$14',
+    pricingAnchor5: '$9',
     pricingAnchor6: '. Faça as contas.',
 
     /* Newsletter */

@@ -735,7 +735,7 @@ onUnmounted(() => {
         <div class="pp-pricing-card pp-pricing-card--pop pp-card-tilt">
           <div class="pp-pricing-badge">{{ t('pricingPopBadge') }}</div>
           <div class="pp-pricing-name">{{ t('pricingPremName') }}</div>
-          <div class="pp-pricing-price">$14<span>/mo</span></div>
+          <div class="pp-pricing-price">$9<span>/mo</span></div>
           <div class="pp-pricing-period">{{ t('pricingPremPeriod') }}</div>
           <ul class="pp-pricing-features">
             <li>{{ t('pricingPrem1') }}</li>
@@ -752,7 +752,7 @@ onUnmounted(() => {
         <div class="pp-pricing-card pp-pricing-card--pro pp-card-tilt">
           <div class="pp-pricing-badge pp-badge-pro">{{ t('pricingProBadge') }}</div>
           <div class="pp-pricing-name">{{ t('pricingProName') }}</div>
-          <div class="pp-pricing-price">$29<span>/mo</span></div>
+          <div class="pp-pricing-price">$19<span>/mo</span></div>
           <div class="pp-pricing-period">{{ t('pricingProPeriod') }}</div>
           <ul class="pp-pricing-features">
             <li>{{ t('pricingPro1') }}</li>
