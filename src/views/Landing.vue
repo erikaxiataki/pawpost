@@ -116,7 +116,13 @@ function triggerConfetti() {
   setTimeout(() => { showConfetti.value = false }, 2500)
 }
 
+const hasProfile = ref(false)
+
 function goToOnboarding() {
+  if (hasProfile.value) {
+    router.push('/dashboard')
+    return
+  }
   triggerConfetti()
   setTimeout(() => router.push('/onboarding'), 900)
 }
@@ -327,6 +333,7 @@ function spawnPopupPaws() {
 }
 
 onMounted(() => {
+  hasProfile.value = !!localStorage.getItem('pawpost_profile')
   spawnPaws()
   spawnPopupPaws()
   startTypewriter()
@@ -353,9 +360,12 @@ onUnmounted(() => {
           <img src="/logo.png" alt="PawPost AI" class="pp-logo-img" />
           <span class="pp-logo-text">PawPost <span class="pp-logo-ai">AI</span></span>
         </div>
-        <div class="pp-lang-toggle">
-          <button :class="['pp-lang-btn', locale === 'en' && 'active']" @click="setLocale('en')" title="English">🇨🇦</button>
-          <button :class="['pp-lang-btn', locale === 'pt' && 'active']" @click="setLocale('pt')" title="Português">🇧🇷</button>
+        <div class="pp-nav-actions">
+          <button v-if="hasProfile" class="pp-nav-dashboard-btn" @click="router.push('/dashboard')">My Dashboard</button>
+          <div class="pp-lang-toggle">
+            <button :class="['pp-lang-btn', locale === 'en' && 'active']" @click="setLocale('en')" title="English">🇨🇦</button>
+            <button :class="['pp-lang-btn', locale === 'pt' && 'active']" @click="setLocale('pt')" title="Português">🇧🇷</button>
+          </div>
         </div>
       </div>
     </nav>
@@ -996,6 +1006,23 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.75rem;
 }
+.pp-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.pp-nav-dashboard-btn {
+  padding: 0.5rem 1.1rem;
+  border-radius: 100px;
+  background: #D97706;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.pp-nav-dashboard-btn:hover { opacity: 0.9; }
 .pp-lang-toggle {
   display: flex;
   gap: 0.25rem;
